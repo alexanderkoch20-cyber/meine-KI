@@ -142,12 +142,14 @@ def test_cli_brand_workflow(tmp_path, capsys):
     assert main(d + ["brand", "show", "--agent", "social"]) == 0
     assert "CLI-Testmarke" in capsys.readouterr().out
 
-    data["brand_voice"]["form_of_address"] = "du"
+    # Wert, der sich garantiert von der (echten) Arbeitskopie unterscheidet - nur in der Temp-Kopie
+    data["brand_voice"]["form_of_address"] = "situationsabhaengig"
     path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
     assert main(d + ["brand", "commit", "--note", "Anrede"]) == 0
     capsys.readouterr()
     assert main(d + ["brand", "diff", "1", "2"]) == 0
-    assert "brand_voice.form_of_address: NOT_PROVIDED -> du" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "brand_voice.form_of_address:" in out and "-> situationsabhaengig" in out
     assert main(d + ["brand", "history"]) == 0
     out = capsys.readouterr().out
     assert "Name eingetragen" in out and "Integritaet: OK" in out

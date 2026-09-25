@@ -112,8 +112,14 @@ def test_rulenine_draft_keeps_owner_safeguards_and_open_points(brand_schema):
     assert "NUR der Owner entscheidet" in working.get("offer", "pricing_notes")
     assert any("KEINE rechtlich freigegebenen Assets" in r for r in working.get("visual_identity", "design_rules"))
     # Nicht vom Owner angegeben -> bleibt offen (nichts erfunden)
-    for section, field in [("brand_voice", "form_of_address"), ("strategic_goals", "short_term"),
-                           ("positioning", "competitors"), ("visual_identity", "fonts"),
+    # Vom Owner vor dem Release ergaenzt/bestaetigt
+    assert working.get("brand_voice", "form_of_address") == "du"
+    assert working.jurisdictions == ["DE"]
+    short = working.get("strategic_goals", "short_term")
+    assert len(short) == 1 and short[0]["goal"].startswith("Kurzfristig soll Rulenine")
+    assert short[0]["metric"] == NOT_PROVIDED and short[0]["target_date"] == NOT_PROVIDED
+    assert working.check().ok  # alle Pflichtinformationen vorhanden
+    for section, field in [("positioning", "competitors"), ("visual_identity", "fonts"),
                            ("legal_compliance", "licenses"), ("brand_identity", "history"),
                            ("offer", "services")]:
         assert working.status(section, field) == NOT_PROVIDED, f"{section}.{field}"

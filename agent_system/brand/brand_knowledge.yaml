@@ -184,7 +184,7 @@ brand_voice:
   writing_style: kurz, klar, selbstbewusst, hochwertig - keine unnoetige Werbesprache
   # Wie spricht die Brand ihre Zielgruppe an - du, Sie oder situationsabhaengig? [PFLICHT]
   # Erlaubt: du | Sie | situationsabhaengig
-  form_of_address: NOT_PROVIDED
+  form_of_address: du
   # In welchen Sprachen kommuniziert die Brand?
   languages:
   - Deutsch
@@ -328,6 +328,7 @@ no_gos:
 # ---------------------------------------------------------------------------
 legal_compliance:
   # In welchen Rechtsraeumen ist die Brand rechtlich taetig (Sitz, Verkauf, Werbung)? (Codes wie DE, AT, CH, EU, UK, US) [PFLICHT]
+  # Vom Owner bestaetigt (2026-09-25): aktueller Rechtsraum fuer die Startphase = Deutschland (DE).
   jurisdictions:
   - DE
   # Welche rechtlichen Vorgaben sind dir bekannt (z.B. Branchenregeln, Auflagen)? (Titel, Rechtsraum, Beschreibung, Quelle)
@@ -353,7 +354,12 @@ legal_compliance:
 strategic_goals:
   # Welche Ziele gelten fuer die naechsten 12 Monate? (Ziel, Messgroesse, Zieldatum) [PFLICHT]
   # Je Eintrag: goal*, metric, target_date
-  short_term: NOT_PROVIDED
+  short_term:
+  - goal: Kurzfristig soll Rulenine als Premium-Streetwear-Marke in Deutschland aufgebaut werden. Der Fokus
+      liegt auf der Entwicklung und Markteinführung der ersten R9 / 001 First Edition mit T-Shirts und Hoodies,
+      dem Aufbau der Marke und einer starken Präsenz auf Instagram und TikTok.
+    metric: NOT_PROVIDED
+    target_date: NOT_PROVIDED
   # Welche Ziele gelten fuer 1-3 Jahre?
   # Je Eintrag: goal*, metric, target_date
   mid_term: NOT_PROVIDED
