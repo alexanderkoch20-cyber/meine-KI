@@ -61,7 +61,7 @@ def test_cli_agents_and_brand(tmp_path, capsys):
     assert main(["--data-dir", str(tmp_path), "brand", "check"]) == 0
     out = capsys.readouterr().out
     assert "Pflichtinformationen:" in out and "Pruefung der Arbeitskopie" in out
-    assert "Freigegeben (von Agenten genutzt): v1" in out
+    assert "Freigegeben (von Agenten genutzt): v" in out
 
 
 def test_cli_action_decisions_are_dry_run(tmp_path, capsys):

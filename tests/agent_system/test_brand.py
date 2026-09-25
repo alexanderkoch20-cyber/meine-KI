@@ -84,18 +84,21 @@ def test_every_field_has_an_onboarding_question(brand_schema):
 # ================================================================ Nichts erfinden
 
 
-def test_rulenine_working_draft_is_valid_but_not_released(brand_schema):
-    """Arbeitskopie = Rulenine Working Draft 1.0 (Owner-Angaben). Sie darf gueltig sein,
-    wird aber erst durch einen Owner-Release (brand commit) von Agenten genutzt."""
+def test_rulenine_release_v2_is_owner_committed_and_active(brand_schema):
+    """Rulenine 1.0 wurde vom Owner per 'brand commit' als v2 freigegeben.
+    v1 bleibt die unveraenderte leere Vorlage; Agenten nutzen v2."""
     repo = BrandRepository(DEFAULT_BRAND_DIR)
+    assert repo.verify_index() == []
+    history = repo.history()
+    assert [e["version"] for e in history][:2] == [1, 2]
+    v2 = history[1]
+    assert v2["committed_by"] == "owner" and "Owner-Release" in v2["note"]
+    released = repo.load_version(2)
+    assert released.name == "Rulenine" and released.check().ok
+    assert BrandContextLoader(repo).load().version >= 2
+    # Arbeitskopie ist weiterhin gueltig (Owner kann darin kuenftige Aenderungen vorbereiten)
     data = read_brand_yaml(repo.working_path)
     assert validate(data, brand_schema).ok
-    assert data["meta"]["working_draft"].endswith("WORKING DRAFT 1.0")
-    working = BrandKnowledge.from_data(data, brand_schema)
-    assert working.name == "Rulenine"
-    # Kein automatischer Release: Agenten sehen weiterhin die freigegebene Version.
-    assert repo.has_uncommitted_changes()
-    assert repo.current().content_hash != working.content_hash
 
 
 def test_rulenine_draft_keeps_owner_safeguards_and_open_points(brand_schema):

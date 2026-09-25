@@ -10,6 +10,16 @@
       "committed_at": "2026-09-25T21:35:43+00:00",
       "committed_by": "system:bootstrap",
       "note": "Initiale leere Vorlage - alle Felder NOT_PROVIDED"
+    },
+    {
+      "version": 2,
+      "file": "v0002.yaml",
+      "content_hash": "429a3bfdf9ae3a978f72f6a7f07f8c2af77bff8b214de44a530331eaf15b30d2",
+      "file_hash": "7005f10904a0100e64960706a1cd7a2b6c46cf919b1edf4f08fba35849b455d9",
+      "parent_hash": "e05cb627b32d038a0d065463e30456d739f2d2c546463799f57adfd4d11b591f",
+      "committed_at": "2026-09-25T22:43:57+00:00",
+      "committed_by": "owner",
+      "note": "Rulenine Brand Knowledge Base 1.0 - Owner-Release"
     }
   ]
 }
