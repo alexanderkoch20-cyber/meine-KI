@@ -16,7 +16,10 @@ from starlette.concurrency import run_in_threadpool
 
 from .core.camera import PRESET_INFO
 from .core.effects import COLOR_GRADES
-from .core.pipeline import GenerationConfig, generate_video
+from .core.orchestrator import generate_scene
+from .core.pipeline import GenerationConfig
+from .core.providers import DEFAULT_PROVIDER_ID, list_providers
+from .diagnostics import run_hardware_check
 
 logger = logging.getLogger("cinemotion.web")
 
@@ -50,6 +53,28 @@ def styles() -> JSONResponse:
     return JSONResponse({"styles": data, "color_grades": grades})
 
 
+@app.get("/api/providers")
+def providers() -> JSONResponse:
+    return JSONResponse({"providers": list_providers(), "default": DEFAULT_PROVIDER_ID})
+
+
+@app.get("/api/hardware")
+def hardware() -> JSONResponse:
+    report = run_hardware_check()
+    return JSONResponse(
+        {
+            "cpu_count": report.cpu_count,
+            "ram_total_gb": report.ram_total_gb,
+            "disk_free_gb": report.disk_free_gb,
+            "platform": report.platform,
+            "gpu_found": report.gpu_found,
+            "gpu_name": report.gpu_name,
+            "gpu_vram_gb": report.gpu_vram_gb,
+            "notes": report.notes,
+        }
+    )
+
+
 def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
@@ -57,6 +82,7 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 @app.post("/api/generate")
 async def api_generate(
     file: UploadFile = File(...),
+    provider: str = Form(DEFAULT_PROVIDER_ID),
     style: str = Form("parallax_dolly"),
     duration: float = Form(5.0),
     fps: int = Form(24),
@@ -84,6 +110,9 @@ async def api_generate(
         raise HTTPException(400, f"Unbekannter Stil: {style}")
     if color_grade not in COLOR_GRADES:
         raise HTTPException(400, f"Unbekanntes Farbgrading: {color_grade}")
+    known_provider_ids = {p["id"] for p in list_providers()}
+    if provider not in known_provider_ids:
+        raise HTTPException(400, f"Unbekannter Provider: {provider}")
 
     job_id = uuid.uuid4().hex
     suffix = Path(file.filename or "upload.jpg").suffix or ".jpg"
@@ -108,7 +137,9 @@ async def api_generate(
     )
 
     try:
-        meta = await run_in_threadpool(generate_video, str(input_path), str(output_path), config)
+        meta = await run_in_threadpool(
+            generate_scene, str(input_path), str(output_path), config, provider
+        )
     except Exception as exc:  # pragma: no cover - defensive
         logger.exception("Videoerzeugung fehlgeschlagen")
         raise HTTPException(500, f"Videoerzeugung fehlgeschlagen: {exc}") from exc

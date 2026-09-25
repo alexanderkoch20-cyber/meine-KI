@@ -1,0 +1,14 @@
+# Optionale Abhaengigkeiten fuer den LOKALEN generativen Video-Provider
+# (app/core/providers/generative_local.py, Stable Video Diffusion).
+#
+# Installation: pip install -r requirements-generative.txt
+# Voraussetzung: NVIDIA-GPU mit >= 10 GB VRAM (siehe `python -m app.cli
+# --hardware-check`). Ohne passende GPU bleibt der Provider automatisch
+# deaktiviert und die App faellt auf "Parallax Dolly" zurueck.
+#
+# Der erste Lauf laedt ~9-10 GB Modellgewichte von huggingface.co herunter.
+torch>=2.1
+torchvision>=0.16
+diffusers>=0.27
+accelerate>=0.28
+safetensors>=0.4

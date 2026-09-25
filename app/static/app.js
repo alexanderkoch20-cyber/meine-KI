@@ -3,6 +3,7 @@
   const dzPlaceholder = document.getElementById("dz-placeholder");
   const preview = document.getElementById("preview");
   const fileInput = document.getElementById("fileInput");
+  const providerList = document.getElementById("providerList");
   const styleList = document.getElementById("styleList");
   const durationEl = document.getElementById("duration");
   const durationVal = document.getElementById("durationVal");
@@ -14,9 +15,11 @@
   const resultEl = document.getElementById("result");
   const resultVideo = document.getElementById("resultVideo");
   const downloadLink = document.getElementById("downloadLink");
+  const fallbackNote = document.getElementById("fallbackNote");
 
   let selectedFile = null;
   let selectedStyle = "parallax_dolly";
+  let selectedProvider = "parallax_2_5d";
 
   function setPreview(file) {
     const url = URL.createObjectURL(file);
@@ -45,6 +48,35 @@
 
   durationEl.addEventListener("input", () => { durationVal.textContent = `${parseFloat(durationEl.value).toFixed(1)}s`; });
   intensityEl.addEventListener("input", () => { intensityVal.textContent = `${parseFloat(intensityEl.value).toFixed(1)}x`; });
+
+  async function loadProviders() {
+    const res = await fetch("/api/providers");
+    const data = await res.json();
+    providerList.innerHTML = "";
+    selectedProvider = data.default;
+    data.providers.forEach((p, idx) => {
+      const card = document.createElement("div");
+      card.className = "style-card provider-card" + (idx === 0 ? " active" : "") + (p.available ? "" : " unavailable");
+      card.dataset.id = p.id;
+      const badge = p.available
+        ? `<span class="badge available">verfuegbar</span>`
+        : `<span class="badge unavailable">nicht verfuegbar</span>`;
+      card.innerHTML = `
+        <div>
+          <div class="label">${p.label}</div>
+          <div class="desc">${p.description}</div>
+          <div class="status-note">${p.status}</div>
+        </div>
+        ${badge}
+      `;
+      card.addEventListener("click", () => {
+        document.querySelectorAll(".provider-card").forEach((c) => c.classList.remove("active"));
+        card.classList.add("active");
+        selectedProvider = p.id;
+      });
+      providerList.appendChild(card);
+    });
+  }
 
   async function loadStyles() {
     const res = await fetch("/api/styles");
@@ -81,6 +113,7 @@
 
     const form = new FormData();
     form.append("file", selectedFile);
+    form.append("provider", selectedProvider);
     form.append("style", selectedStyle);
     form.append("duration", durationEl.value);
     form.append("fps", 24);
@@ -106,7 +139,19 @@
       downloadLink.href = data.video_url;
       resultEl.style.display = "block";
       const m = data.meta;
-      statusEl.textContent = `Fertig in ${m.elapsed_seconds}s - ${m.resolution[0]}x${m.resolution[1]}, ${m.frames} Frames @ ${m.fps}fps (Tiefe: ${m.depth_backend})`;
+
+      if (m.fallback_reason) {
+        fallbackNote.style.display = "block";
+        fallbackNote.textContent = `Hinweis: "${m.requested_provider}" war nicht verfuegbar (${m.fallback_reason}) - stattdessen wurde automatisch "${m.used_provider}" verwendet.`;
+      } else {
+        fallbackNote.style.display = "none";
+      }
+
+      const parts = [`Fertig in ${m.elapsed_seconds}s`];
+      if (m.resolution) parts.push(`${m.resolution[0]}x${m.resolution[1]}`);
+      if (m.frames) parts.push(`${m.frames} Frames @ ${m.fps}fps`);
+      if (m.depth_backend) parts.push(`Tiefe: ${m.depth_backend}`);
+      statusEl.textContent = parts.join(" - ");
     } catch (e) {
       statusEl.textContent = `Fehler: ${e.message}`;
     } finally {
@@ -114,5 +159,6 @@
     }
   });
 
+  loadProviders();
   loadStyles();
 })();

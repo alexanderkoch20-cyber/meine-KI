@@ -34,7 +34,11 @@
       </section>
 
       <section class="panel">
-        <h2>2. Kamerafahrt waehlen</h2>
+        <h2>2. Engine waehlen</h2>
+        <div class="styles" id="providerList"></div>
+        <p class="hint-text" id="providerHint">Kamera-Presets unten gelten fuer die 2.5D-Engine (Parallax Dolly).</p>
+
+        <h2 style="margin-top:22px;">3. Kamerafahrt waehlen</h2>
         <div class="styles" id="styleList"></div>
 
         <div class="field">
@@ -69,6 +73,7 @@
         <div class="status" id="status"></div>
 
         <div class="result" id="result" style="display:none;">
+          <div class="fallback-note" id="fallbackNote" style="display:none;"></div>
           <video id="resultVideo" controls loop playsinline></video>
           <div class="result-actions">
             <a href="#" id="downloadLink" class="primary" download="cinemotion.mp4">Herunterladen</a>

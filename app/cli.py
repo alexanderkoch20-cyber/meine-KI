@@ -11,7 +11,10 @@ import sys
 
 from .core.camera import PRESET_INFO, PRESETS
 from .core.effects import COLOR_GRADES
-from .core.pipeline import GenerationConfig, generate_video
+from .core.orchestrator import generate_scene
+from .core.pipeline import GenerationConfig
+from .core.providers import DEFAULT_PROVIDER_ID, list_providers
+from .diagnostics import format_report, run_hardware_check
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -45,12 +48,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-letterbox", action="store_true")
     p.add_argument("--no-motion-blur", action="store_true")
     p.add_argument("--list-styles", action="store_true", help="Alle Kamera-Presets mit Beschreibung anzeigen und beenden")
+    p.add_argument(
+        "--provider",
+        default=DEFAULT_PROVIDER_ID,
+        help=f"Video-Engine (Standard: {DEFAULT_PROVIDER_ID}). Siehe --list-providers.",
+    )
+    p.add_argument("--list-providers", action="store_true", help="Alle Video-Engines mit Verfuegbarkeit anzeigen und beenden")
+    p.add_argument("--hardware-check", action="store_true", help="Hardware/Umgebung pruefen und beenden")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.hardware_check:
+        print(format_report(run_hardware_check()))
+        return 0
+
+    if args.list_providers:
+        for p in list_providers():
+            marker = "*" if p["id"] == DEFAULT_PROVIDER_ID else " "
+            status = "verfuegbar" if p["available"] else "nicht verfuegbar"
+            print(f"{marker} {p['id']:26s} [{status:16s}] {p['label']}")
+            print(f"   {p['description']}")
+            print(f"   -> {p['status']}")
+        return 0
 
     if args.list_styles:
         for key, info in PRESET_INFO.items():
@@ -83,11 +106,15 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(f"\r[{bar}] {p * 100:5.1f}%")
         sys.stdout.flush()
 
-    print(f"Erzeuge cinematische Szene aus '{args.image}' (Stil: {args.style}) ...")
-    meta = generate_video(args.image, args.out, config, progress_cb=progress)
+    print(f"Erzeuge cinematische Szene aus '{args.image}' (Provider: {args.provider}, Stil: {args.style}) ...")
+    meta = generate_scene(args.image, args.out, config, provider_id=args.provider, progress_cb=progress)
     print()
+    if meta.get("fallback_reason"):
+        print(f"Hinweis: '{meta['requested_provider']}' war nicht verfuegbar ({meta['fallback_reason']})")
+        print(f"         -> stattdessen '{meta['used_provider']}' verwendet.")
     print(f"Fertig in {meta['elapsed_seconds']}s -> {args.out}")
-    print(f"  Aufloesung: {meta['resolution'][0]}x{meta['resolution'][1]}, {meta['frames']} Frames @ {meta['fps']}fps")
+    if "resolution" in meta:
+        print(f"  Aufloesung: {meta['resolution'][0]}x{meta['resolution'][1]}, {meta['frames']} Frames @ {meta['fps']}fps")
     return 0
 
 
