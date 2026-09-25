@@ -84,12 +84,40 @@ def test_every_field_has_an_onboarding_question(brand_schema):
 # ================================================================ Nichts erfinden
 
 
-def test_shipped_working_copy_contains_no_invented_information(brand_schema):
-    data = read_brand_yaml(DEFAULT_BRAND_DIR / "brand_knowledge.yaml")
+def test_rulenine_working_draft_is_valid_but_not_released(brand_schema):
+    """Arbeitskopie = Rulenine Working Draft 1.0 (Owner-Angaben). Sie darf gueltig sein,
+    wird aber erst durch einen Owner-Release (brand commit) von Agenten genutzt."""
+    repo = BrandRepository(DEFAULT_BRAND_DIR)
+    data = read_brand_yaml(repo.working_path)
     assert validate(data, brand_schema).ok
-    for s in brand_schema.sections:
-        for f in s.fields:
-            assert data[s.name][f.name] == NOT_PROVIDED, f"{s.name}.{f.name} ist vorausgefuellt"
+    assert data["meta"]["working_draft"].endswith("WORKING DRAFT 1.0")
+    working = BrandKnowledge.from_data(data, brand_schema)
+    assert working.name == "Rulenine"
+    # Kein automatischer Release: Agenten sehen weiterhin die freigegebene Version.
+    assert repo.has_uncommitted_changes()
+    assert repo.current().content_hash != working.content_hash
+
+
+def test_rulenine_draft_keeps_owner_safeguards_and_open_points(brand_schema):
+    working = BrandKnowledge.from_data(read_brand_yaml(DEFAULT_BRAND_DIR / "brand_knowledge.yaml"), brand_schema)
+    owner = working.get("brand_identity", "owner")
+    assert "Einzelunternehmen" in owner and "GmbH existiert aktuell NICHT" in owner
+    products = {p["name"]: p for p in working.get("offer", "products")}
+    assert "NICHT endgueltig" in products["T-Shirts"]["price"]
+    assert "Grammatur OFFEN" in products["T-Shirts"]["description"]
+    assert all(p["status"] == "planned" for p in products.values())
+    planned = {o["name"]: o["description"] for o in working.get("offer", "planned_offers")}
+    for name in ("R9 / Core", "R9 / Motion", "R9 / Performance"):
+        assert "NICHT endgueltig bestaetigt" in planned[name]
+    assert "NUR der Owner entscheidet" in working.get("offer", "pricing_notes")
+    assert any("KEINE rechtlich freigegebenen Assets" in r for r in working.get("visual_identity", "design_rules"))
+    # Nicht vom Owner angegeben -> bleibt offen (nichts erfunden)
+    for section, field in [("brand_voice", "form_of_address"), ("strategic_goals", "short_term"),
+                           ("positioning", "competitors"), ("visual_identity", "fonts"),
+                           ("legal_compliance", "licenses"), ("brand_identity", "history"),
+                           ("offer", "services")]:
+        assert working.status(section, field) == NOT_PROVIDED, f"{section}.{field}"
+    assert all(c["value"] == NOT_PROVIDED for c in working.get("visual_identity", "colors"))  # keine erfundenen HEX
 
 
 def test_shipped_version_1_is_the_empty_template(brand_schema):

@@ -60,7 +60,8 @@ def test_cli_agents_and_brand(tmp_path, capsys):
     assert "claude-opus-5-5" in out and "claude-haiku" in out and "Owner: Alex" in out
     assert main(["--data-dir", str(tmp_path), "brand", "check"]) == 0
     out = capsys.readouterr().out
-    assert "Pflichtinformationen: 0% vollstaendig" in out and "brand_identity.brand_name" in out
+    assert "Pflichtinformationen:" in out and "Pruefung der Arbeitskopie" in out
+    assert "Freigegeben (von Agenten genutzt): v1" in out
 
 
 def test_cli_action_decisions_are_dry_run(tmp_path, capsys):

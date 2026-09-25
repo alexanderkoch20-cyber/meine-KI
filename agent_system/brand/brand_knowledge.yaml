@@ -1,9 +1,13 @@
 # ===========================================================================
 # BRAND KNOWLEDGE BASE - Arbeitskopie (hier traegt der Owner ein)
+# RULENINE - WORKING DRAFT 1.0 (noch NICHT freigegeben; Agenten nutzen die
+# zuletzt freigegebene Version, bis der Owner 'brand commit' ausfuehrt)
 # ===========================================================================
 # WICHTIG
-# - Es sind KEINE Informationen vorausgefuellt oder erfunden. Jedes Feld steht
-#   auf NOT_PROVIDED, bis du es beantwortest.
+# - Es wird nichts erfunden. Eingetragen sind nur vom Owner bestaetigte Angaben
+#   (Rulenine, Working Draft 1.0); alles andere steht auf NOT_PROVIDED.
+#   Unbestaetigtes ist im Text als "Arbeitsname/Arbeitsversion", "MOEGLICHE
+#   Variante", "NICHT endgueltig" oder "OFFEN" gekennzeichnet.
 # - Platzhalter:  NOT_PROVIDED = noch nicht beantwortet
 #                 UNKNOWN      = weiss ich (noch) nicht
 #                 NOT_APPLICABLE = trifft nicht zu (nicht ueberall erlaubt)
@@ -17,27 +21,46 @@
 
 meta:
   schema_version: 2
+  # Nur Beschreibung - wird nicht versioniert und steuert nichts.
+  working_draft: "Rulenine Brand Knowledge Base - WORKING DRAFT 1.0"
+  draft_status: "NICHT FREIGEGEBEN - Owner-Release per 'brand commit' steht aus"
+  draft_source: "Vom Owner bestaetigte Angaben, uebertragen am 2026-09-25"
 
 # ---------------------------------------------------------------------------
 # 1. BRAND IDENTITY - Wer ist die Marke, woher kommt sie, wofuer steht sie?
 # ---------------------------------------------------------------------------
 brand_identity:
   # Wie lautet der offizielle Name deiner Brand (genaue Schreibweise)? [PFLICHT]
-  brand_name: NOT_PROVIDED
+  brand_name: Rulenine
   # Wer ist Owner der Brand (Person oder Firma, so wie sie genannt werden soll)? [PFLICHT]
-  owner: NOT_PROVIDED
+  owner: 'Der Owner besitzt die Marke persoenlich. Aktuelle Unternehmensform: Einzelunternehmen. Eine spaetere
+    GmbH ist vorgesehen, sobald Rulenine entsprechend laeuft und die wirtschaftlichen/organisatorischen
+    Voraussetzungen gegeben sind. WICHTIG: Die GmbH existiert aktuell NICHT und darf von keinem Agenten
+    als bestehende Rechtsform dargestellt werden.'
   # Wer hat die Brand gegruendet (falls abweichend vom Owner)?
   founders: NOT_PROVIDED
   # Wie ist die Brand entstanden? Welche Meilensteine gab es?
   history: NOT_PROVIDED
   # Was ist die Mission der Brand - welches Problem loest sie fuer wen? [PFLICHT]
-  mission: NOT_PROVIDED
+  mission: Rulenine verbindet Premium-Qualitaet, minimalistisches Design, Streetwear und sportliche Elemente
+    zu hochwertiger Kleidung fuer Menschen, die ihren eigenen Stil und ihren eigenen Weg leben. (Arbeitsversion)
   # Wo soll die Brand in 5-10 Jahren stehen?
-  vision: NOT_PROVIDED
+  vision: Rulenine soll sich von einer jungen Premium-Streetwear-Marke zu einer international etablierten
+    Fashion- und Lifestyle-Marke entwickeln, die Fashion, Streetwear, Sport und Lifestyle miteinander verbindet
+    und weltweit fuer Qualitaet, minimalistisches Design, Freiheit und einen eigenen Stil steht. (Arbeitsversion)
   # Welche 3-6 Werte leiten die Brand? (je Wert gern ein Satz, was er konkret bedeutet) [PFLICHT]
-  values: NOT_PROVIDED
+  values:
+  - Qualitaet
+  - Ehrlichkeit
+  - Freiheit
+  - Mut
+  - Perfektion
+  - Premium
   # Welche langfristigen Ziele verfolgt die Brand?
-  long_term_goals: NOT_PROVIDED
+  long_term_goals:
+  - Start in Deutschland; nach erfolgreichem Aufbau schrittweise Expansion in weitere europaeische Maerkte
+    und langfristig international. Reihenfolge und Zeitpunkt entscheidet ausschliesslich der Owner.
+  - Spaetere Gruendung einer GmbH, sobald die Voraussetzungen gegeben sind (existiert aktuell NICHT).
 
 # ---------------------------------------------------------------------------
 # 2. ANGEBOT - Was verkauft bzw. bietet die Brand an?
@@ -45,20 +68,68 @@ brand_identity:
 offer:
   # Welche Produkte bietet die Brand an? (je Produkt Name, Beschreibung, Preis, USP, Status, Maerkte)
   # Je Eintrag: name*, description, price, usp, status, markets
-  products: NOT_PROVIDED
+  products:
+  - name: T-Shirts
+    description: 'Startprodukt (geplant). Product-DNA: Material Bio-Baumwolle und/oder Baumwoll-Mix - genaue
+      Materialzusammensetzung OFFEN. Gewicht mittelschwer oder Heavyweight - konkrete Grammatur OFFEN. Logo:
+      vorhandenes Rulenine-Logo; kleine/dezente Platzierung auf der linken Brust ist eine MOEGLICHE Variante,
+      weitere Platzierungen je nach Design moeglich. Rueckseite je nach Kollektion unterschiedlich; MOEGLICHE
+      (nicht feststehende) Elemente: grosser Backprint, dezente Grafik, Koordinaten, ''MOVE DIFFERENT'',
+      cleaner Ruecken. Keine dieser optionalen Varianten darf als feststehendes Produktdetail ausgegeben
+      werden. Groessenkonzept, Designs, Lieferanten, Produktionskosten und Verpackung: OFFEN.'
+    price: vorlaeufige Orientierung ca. 49-69 EUR - NICHT endgueltig, Entscheidung nur durch den Owner
+    status: planned
+    markets:
+    - DE
+  - name: Hoodies
+    description: 'Startprodukt (geplant). Material, Grammatur, Groessenkonzept, Designs, Lieferanten, Produktionskosten
+      und Verpackung: OFFEN.'
+    price: vorlaeufige Orientierung ca. 79-119 EUR - NICHT endgueltig, Entscheidung nur durch den Owner
+    status: planned
+    markets:
+    - DE
+  - name: Jogger
+    description: Nach den Startprodukten geplant. Details OFFEN.
+    status: planned
+  - name: Sportbekleidung
+    description: Spaeter geplant. Details OFFEN.
+    status: planned
   # Welche Dienstleistungen bietet die Brand an? (je Leistung Name, Beschreibung, Preis, USP, Status, Maerkte)
   # Je Eintrag: name*, description, price, usp, status, markets
   services: NOT_PROVIDED
   # Gibt es Regeln zur Kommunikation von Preisen (z.B. nie Rabatte, immer Bruttopreise)?
-  pricing_notes: NOT_PROVIDED
+  pricing_notes: 'Grundrichtung: Accessible Premium / Premium - Rulenine soll hochwertig und premium wahrgenommen
+    werden, als neue Marke aber einen zugaenglichen Einstiegspreis behalten. Die genannten Preise sind NICHT
+    endgueltig. Endgueltige Preise werden spaeter auf Grundlage von Produktionskosten, Material, Qualitaet,
+    Verarbeitung, Verpackung, Versand, Retouren, Steuern, gewuenschter Marge, Marktvergleich und Zielgruppenanalyse
+    ermittelt. Agenten (z.B. Research) duerfen Analysen und Vorschlaege erstellen; NUR der Owner entscheidet
+    ueber den tatsaechlichen Verkaufspreis.'
   # Was unterscheidet das Angebot konkret von Alternativen (Unique Selling Points)? [PFLICHT]
-  usps: NOT_PROVIDED
+  usps:
+  - Rulenine vereint Premium-Qualitaet, minimalistisches Design, Streetwear und Sport zu einer vielseitigen
+    modernen Bekleidungsmarke. (Arbeitsversion)
   # Welche Angebote oder Aktionen laufen aktuell?
   # Je Eintrag: name*, description, period, markets
   current_offers: NOT_PROVIDED
   # Welche Angebote oder Produkte sind geplant?
   # Je Eintrag: name*, description, planned_for, markets
-  planned_offers: NOT_PROVIDED
+  planned_offers:
+  - name: R9 / 001 - First Edition
+    description: 'Geplante kleine limitierte Startkollektion mit T-Shirts und Hoodies. Wichtige Farben:
+      Schwarz, Cream, Off-White. Genaue Anzahl von Designs, Farben, Groessen und Stueckzahlen ist OFFEN.
+      Produktion erst nach Planung, Kalkulation und Owner-Freigabe. ''R9 / 001 - Limited First Edition''
+      darf nur verwendet werden, wenn die Kollektion tatsaechlich entsprechend begrenzt ist. Ob limitiert,
+      wie viele Stueck, Start und Ende des Drops entscheidet ausschliesslich der Owner.'
+    planned_for: NOT_PROVIDED
+  - name: R9 / Core
+    description: Dauerhaft verfuegbare Basics. Arbeitsname - NICHT endgueltig bestaetigt.
+    planned_for: nach R9 / 001
+  - name: R9 / Motion
+    description: Jogger und sportlichere Kleidung. Arbeitsname - NICHT endgueltig bestaetigt.
+    planned_for: nach R9 / 001
+  - name: R9 / Performance
+    description: Spaetere Sportbekleidung. Arbeitsname - NICHT endgueltig bestaetigt.
+    planned_for: spaeter
 
 # ---------------------------------------------------------------------------
 # 3. ZIELGRUPPEN - Fuer wen ist die Brand da - und was bewegt diese Menschen?
@@ -66,49 +137,71 @@ offer:
 target_audiences:
   # Wer sind deine Hauptzielgruppen? (je Gruppe Beschreibung, Beduerfnisse, Probleme, Wuensche, Kaufmotive, Maerkte) [PFLICHT]
   # Je Eintrag: name*, description, needs, problems, desires, buying_motives, markets
-  primary_audiences: NOT_PROVIDED
+  primary_audiences:
+  - name: Maenner und Frauen, ca. 25-40 Jahre
+    description: 'Rulenine richtet sich an Maenner und Frauen im Alter von etwa 25-40 Jahren, die hochwertige,
+      moderne und minimalistische Kleidung mit Streetwear- und sportlichen Einfluessen suchen. Merkmale:
+      modern, aktiv, modebewusst, qualitaetsorientiert, Interesse an Streetwear, Lifestyle und Sport. (Arbeitsbeschreibung)'
+    markets:
+    - DE
   # Gibt es weitere Zielgruppen? (gleiche Angaben wie oben)
   # Je Eintrag: name*, description, needs, problems, desires, buying_motives, markets
   secondary_audiences: NOT_PROVIDED
   # In welchen Laendern/Maerkten ist die Brand aktiv oder will aktiv werden? (Codes wie DE, AT, CH, EU, UK, US) [PFLICHT]
-  markets: NOT_PROVIDED
+  markets:
+  - DE
 
 # ---------------------------------------------------------------------------
 # 4. POSITIONIERUNG - Wo steht die Brand im Markt und wie soll sie wahrgenommen werden?
 # ---------------------------------------------------------------------------
 positioning:
   # Wie wuerdest du die Position der Brand im Markt in 1-3 Saetzen beschreiben (z.B. Premium, Preis-Leistung, Nische)? [PFLICHT]
-  market_position: NOT_PROVIDED
+  market_position: 'Premium Minimal Streetwear mit sportlichen Einfluessen (Arbeitspositionierung). Rulenine
+    verbindet Premium, Minimalismus, Streetwear, Sport, Alltag und Lifestyle und soll NICHT ausschliesslich
+    als reine Streetwear- oder reine Sportmarke positioniert werden. Preisrichtung: Accessible Premium /
+    Premium.'
   # Worin unterscheidet sich die Brand klar von Wettbewerbern? [PFLICHT]
-  differentiation: NOT_PROVIDED
+  differentiation:
+  - Verbindung von Premium-Qualitaet, minimalistischem Design, Streetwear und Sport
+  - Nicht ausschliesslich reine Streetwear- oder reine Sportmarke
   # Wie sieht das Wettbewerbsumfeld aus (Marktgroesse, Art der Anbieter, Dynamik)?
   competitive_landscape: NOT_PROVIDED
   # Welche konkreten Wettbewerber kennst du? (Name, Website, Staerken, Schwaechen)
   # Je Eintrag: name*, website, strengths, weaknesses, notes
   competitors: NOT_PROVIDED
   # Was sollen Menschen denken oder fuehlen, wenn sie die Brand sehen? [PFLICHT]
-  desired_perception: NOT_PROVIDED
+  desired_perception: 'Hochwertig und premium - bei zugaenglichem Einstiegspreis. Gewuenschtes Gefuehl beim
+    Tragen: Selbstbewusstsein, Individualitaet/Besonderheit, Freiheit.'
 
 # ---------------------------------------------------------------------------
 # 5. BRAND VOICE - Wie spricht und schreibt die Brand?
 # ---------------------------------------------------------------------------
 brand_voice:
   # Wie klingt die Brand (z.B. warm, direkt, humorvoll, sachlich)? [PFLICHT]
-  tonality: NOT_PROVIDED
+  tonality: selbstbewusst, modern, hochwertig, minimalistisch, mutig, frei, authentisch, sportlich, nicht
+    aufdringlich
   # Wie soll geschrieben werden (Satzlaenge, Emojis ja/nein, Fachbegriffe, Struktur)? [PFLICHT]
-  writing_style: NOT_PROVIDED
+  writing_style: kurz, klar, selbstbewusst, hochwertig - keine unnoetige Werbesprache
   # Wie spricht die Brand ihre Zielgruppe an - du, Sie oder situationsabhaengig? [PFLICHT]
   # Erlaubt: du | Sie | situationsabhaengig
   form_of_address: NOT_PROVIDED
   # In welchen Sprachen kommuniziert die Brand?
-  languages: NOT_PROVIDED
+  languages:
+  - Deutsch
+  - Englisch
   # Welche Woerter oder Phrasen gehoeren typischerweise zur Brand?
   words_to_use: NOT_PROVIDED
   # Welche Woerter oder Phrasen sollen vermieden werden? (Die QA markiert sie als Warnung.)
   words_to_avoid: NOT_PROVIDED
   # Hast du Beispiele fuer Texte, die genau nach deiner Brand klingen? (Kontext, Text, warum gut)
   # Je Eintrag: context, text*, why_good
-  good_examples: NOT_PROVIDED
+  good_examples:
+  - context: Stilreferenz - KEIN festgelegter Claim
+    text: Own your way.
+  - context: Stilreferenz - KEIN festgelegter Claim
+    text: Dein Stil. Dein Weg.
+  - context: Stilreferenz - KEIN festgelegter Claim
+    text: Premium quality. No compromise.
   # Hast du Beispiele, wie die Brand NICHT klingen soll? (Kontext, Text, warum schlecht)
   # Je Eintrag: context, text*, why_bad
   bad_examples: NOT_PROVIDED
@@ -119,18 +212,44 @@ brand_voice:
 visual_identity:
   # Welche Markenfarben gibt es? (Name, Farbcode z.B. als HEX, Verwendung) [PFLICHT]
   # Je Eintrag: name*, value, usage
-  colors: NOT_PROVIDED
+  colors:
+  - name: Schwarz
+    value: NOT_PROVIDED
+    usage: Farbwelt
+  - name: Weiss
+    value: NOT_PROVIDED
+    usage: Farbwelt
+  - name: Creme / Off-White
+    value: NOT_PROVIDED
+    usage: Farbwelt
+  - name: dunkle Neutraltoene
+    value: NOT_PROVIDED
+    usage: Farbwelt
   # Welche Schriften werden verwendet? (Name, Verwendung, Lizenz)
   # Je Eintrag: name*, usage, license
   fonts: NOT_PROVIDED
   # Welche Regeln gelten fuer das Logo (Schutzzone, Mindestgroesse, Varianten, Verbote)?
-  logo_rules: NOT_PROVIDED
+  logo_rules:
+  - Der Owner besitzt bereits ein eigenes Rulenine-Logo.
+  - Logo-Verwendung grundsaetzlich eher klein und dezent.
   # Wie sieht die Bildsprache aus (Motive, Licht, Farben, Stimmung, echte Menschen vs. Produkt)?
   imagery_style: NOT_PROVIDED
   # Wie sehen Videos der Brand aus (Tempo, Schnitt, Musik, Kamerafuehrung, Laenge)?
   video_style: NOT_PROVIDED
   # Welche weiteren Designregeln gelten (Layouts, Weissraum, Icons, Formen)?
-  design_rules: NOT_PROVIDED
+  design_rules:
+  - 'Grundrichtung: Modern Premium'
+  - minimalistisch
+  - klare Linien
+  - viel freie Flaeche
+  - dezente Typografie
+  - technische/geometrische Elemente
+  - moegliche Koordinaten/geografische Elemente
+  - hochwertige reduzierte Aesthetik
+  - 'Kleidungsrichtung: Oversized / Relaxed Fit als bevorzugte Richtung; modern, hochwertig, Streetwear,
+    sportliche Einfluesse'
+  - Vom Owner gezeigte Designreferenz-Bilder dienen AUSSCHLIESSLICH als visuelle Referenz fuer die Markenrichtung
+    - sie sind KEINE rechtlich freigegebenen Assets und duerfen nicht verwendet werden.
 
 # ---------------------------------------------------------------------------
 # 7. CONTENT - Welche Inhalte gibt es schon und wo wird kommuniziert?
@@ -143,9 +262,23 @@ content:
   preferred_formats: NOT_PROVIDED
   # Auf welchen Plattformen ist die Brand aktiv oder plant es? (Name, Handle, Ziel, Status) [PFLICHT]
   # Je Eintrag: name*, handle, goal, status
-  platforms: NOT_PROVIDED
+  platforms:
+  - name: Instagram
+    goal: NOT_PROVIDED
+    handle: NOT_PROVIDED
+  - name: TikTok
+    status: planned
+  - name: Facebook
+    status: planned
   # Welche 3-5 Themen-Saeulen soll der Content abdecken? [PFLICHT]
-  content_pillars: NOT_PROVIDED
+  content_pillars:
+  - Produkt & Details
+  - Lifestyle / Streetwear
+  - Sport & Bewegung
+  - Brand Story
+  - Behind the Scenes
+  - Kampagnen / Editorials
+  - Community
   # Welche Kampagnen gab es oder sind geplant? (Name, Ziel, Status, Zeitraum, Maerkte)
   # Je Eintrag: name*, goal, status, period, markets
   campaigns: NOT_PROVIDED
@@ -155,22 +288,48 @@ content:
 # ---------------------------------------------------------------------------
 no_gos:
   # Welche Aussagen, Woerter oder Versprechen darf die Brand NIE verwenden? (Die QA blockiert Ergebnisse damit.) [PFLICHT]
-  statements: NOT_PROVIDED
+  statements:
+  - erfundene Produktversprechen
+  - falsche Angaben zu Material, Qualitaet oder Herstellung
+  - irrefuehrende Rabatte
+  - unbelegbare Superlative
+  - erfundene oder irrefuehrende Knappheit (z.B. eine Restmengen-Angabe, die nicht stimmt)
+  - Darstellung einer GmbH als bereits bestehende Rechtsform (existiert aktuell nicht)
+  - Arbeitsnamen (Core, Motion, Performance) oder optionale Produktvarianten als feststehend darstellen
   # Ueber welche Themen spricht die Brand nie (z.B. Politik, Religion, Konkurrenz)? [PFLICHT]
-  topics: NOT_PROVIDED
+  topics:
+  - politische oder religioese Kampagnen als Bestandteil der Marke
+  - beleidigende oder diskriminierende Kommunikation
   # Welche Designs, Stile, Motive oder Farben sind tabu?
-  designs: NOT_PROVIDED
+  designs:
+  - billige oder unserioese Darstellung
+  - kopierte Designs
   # Welche Marketingmethoden lehnt die Brand ab (z.B. Fake-Verknappung, Clickbait, Kaltakquise)?
-  marketing_methods: NOT_PROVIDED
+  marketing_methods:
+  - uebertriebene Protz-/Luxuskommunikation
+  - kuenstlicher Hype
+  - aggressive Verkaufssprache
+  - Fake-Kommentare
+  - gekaufte Bewertungen
+  - Provokation ausschliesslich fuer Reichweite
+  - erfundene oder irrefuehrende Knappheit
   # Welche Aktionen soll die Brand niemals durchfuehren?
-  actions: NOT_PROVIDED
+  actions:
+  - fremde Inhalte ohne entsprechende Rechte verwenden
+  - Personen ohne erforderliche Zustimmung veroeffentlichen
+  - 'Agenten duerfen NICHT selbststaendig: posten, Produkte veroeffentlichen, Preise aendern, Drops starten,
+    Werbebudget ausgeben, Kunden kontaktieren, Brand-Regeln veraendern, neue Produktlinien beschliessen,
+    limitierte Stueckzahlen festlegen - Ausfuehrung nur nach Owner-/Governance-Freigabe'
+  - 'Agenten duerfen: analysieren, recherchieren, Entwuerfe erstellen, Vorschlaege machen, Risiken melden,
+    Entscheidungen zur Owner-Freigabe vorbereiten'
 
 # ---------------------------------------------------------------------------
 # 9. RECHT & COMPLIANCE - Bekannte rechtliche Rahmenbedingungen. Das ist Wissen fuer die Agenten - keine Rechtsberatung.
 # ---------------------------------------------------------------------------
 legal_compliance:
   # In welchen Rechtsraeumen ist die Brand rechtlich taetig (Sitz, Verkauf, Werbung)? (Codes wie DE, AT, CH, EU, UK, US) [PFLICHT]
-  jurisdictions: NOT_PROVIDED
+  jurisdictions:
+  - DE
   # Welche rechtlichen Vorgaben sind dir bekannt (z.B. Branchenregeln, Auflagen)? (Titel, Rechtsraum, Beschreibung, Quelle)
   # Je Eintrag: title*, jurisdiction, description, source
   known_requirements: NOT_PROVIDED
@@ -181,7 +340,12 @@ legal_compliance:
   licenses: NOT_PROVIDED
   # Welche Marken, Urheberrechte oder Domains gehoeren der Brand bzw. sind zu beachten? (Name, Art, Inhaber, Registrierung, Rechtsraeume)
   # Je Eintrag: name*, kind, owner, registration, jurisdictions, notes
-  trademarks_copyrights: NOT_PROVIDED
+  trademarks_copyrights:
+  - name: Rulenine (Name und Logo)
+    kind: other
+    owner: Owner (persoenlich)
+    registration: NOT_PROVIDED
+    notes: Eigenes Logo vorhanden. Marken-/Namenspruefung OFFEN - keine Markenregistrierung bestaetigt.
 
 # ---------------------------------------------------------------------------
 # 10. STRATEGISCHE ZIELE - Wohin will die Brand - kurz-, mittel- und langfristig?
@@ -195,4 +359,9 @@ strategic_goals:
   mid_term: NOT_PROVIDED
   # Welche Ziele gelten langfristig (3+ Jahre)?
   # Je Eintrag: goal*, metric, target_date
-  long_term: NOT_PROVIDED
+  long_term:
+  - goal: Entwicklung zu einer international etablierten Fashion- und Lifestyle-Marke (siehe Vision)
+    target_date: NOT_PROVIDED
+  - goal: 'Schrittweise Expansion: zuerst weitere europaeische Maerkte, danach international - Reihenfolge
+      und Zeitpunkt entscheidet ausschliesslich der Owner'
+    target_date: NOT_PROVIDED
