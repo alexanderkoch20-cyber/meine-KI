@@ -1,0 +1,8 @@
+# Optionale Abhaengigkeiten fuer den echten AI-Tiefenschaetzer (MiDaS).
+# Installation: pip install -r requirements-ai.txt
+# Danach kann --ai-depth (CLI) bzw. der "KI-Tiefenmodell"-Schalter (Web-UI)
+# genutzt werden. Ohne diese Pakete faellt die App automatisch auf die
+# schnelle, komplett offline funktionierende Tiefenheuristik zurueck.
+torch>=2.1
+torchvision>=0.16
+timm>=0.9

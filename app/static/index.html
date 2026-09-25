@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CineMotion AI - Bild zu cinematischer Szene</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="brand"><span class="dot"></span> CineMotion AI</div>
+      <h1>Aus einem Foto wird eine Kinoszene</h1>
+      <p class="sub">
+        Lade ein Bild hoch - CineMotion schaetzt die Tiefe der Szene, fliegt mit einer
+        virtuellen Kamera hindurch (2.5D-Parallaxe) und veredelt alles mit echtem
+        Kino-Look: Farbgrading, Vignette, Filmkorn, Bloom und Letterbox. Komplett lokal,
+        ohne Cloud-API.
+      </p>
+    </header>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>1. Bild hochladen</h2>
+        <div class="dropzone" id="dropzone">
+          <div id="dz-placeholder">
+            <div class="hint-icon">🎬</div>
+            <div>Bild hierher ziehen oder klicken</div>
+            <div style="font-size:0.75rem;margin-top:6px;opacity:0.7;">JPG, PNG oder WEBP, max. 20&nbsp;MB</div>
+          </div>
+          <img id="preview" alt="Vorschau" />
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/bmp" />
+      </section>
+
+      <section class="panel">
+        <h2>2. Kamerafahrt waehlen</h2>
+        <div class="styles" id="styleList"></div>
+
+        <div class="field">
+          <label><span>Laenge</span><span id="durationVal">5.0s</span></label>
+          <input type="range" id="duration" min="2" max="10" step="0.5" value="5" />
+        </div>
+        <div class="field">
+          <label><span>Intensitaet (Zoom/Tiefe)</span><span id="intensityVal">1.0x</span></label>
+          <input type="range" id="intensity" min="0.5" max="2" step="0.1" value="1.0" />
+        </div>
+        <div class="field">
+          <label><span>Farbgrading</span></label>
+          <select id="colorGrade">
+            <option value="cinematic_teal_orange">Cinematic Teal &amp; Orange</option>
+            <option value="warm_film">Warmes Film-Look</option>
+            <option value="cold_thriller">Cold Thriller</option>
+            <option value="none">Kein Grading (Original)</option>
+          </select>
+        </div>
+
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="vignette" checked /> Vignette</label>
+          <label class="toggle"><input type="checkbox" id="grain" checked /> Filmkorn</label>
+          <label class="toggle"><input type="checkbox" id="bloom" checked /> Bloom / Glow</label>
+          <label class="toggle"><input type="checkbox" id="chroma" checked /> Farbfehler (Aberration)</label>
+          <label class="toggle"><input type="checkbox" id="letterbox" checked /> Kino-Balken</label>
+          <label class="toggle"><input type="checkbox" id="motionblur" checked /> Bewegungsunschaerfe</label>
+          <label class="toggle" style="grid-column:1/-1;"><input type="checkbox" id="aiDepth" /> KI-Tiefenmodell (MiDaS, laedt beim ersten Mal Modellgewichte nach)</label>
+        </div>
+
+        <button class="btn" id="generateBtn">Cinematische Szene erzeugen</button>
+        <div class="status" id="status"></div>
+
+        <div class="result" id="result" style="display:none;">
+          <video id="resultVideo" controls loop playsinline></video>
+          <div class="result-actions">
+            <a href="#" id="downloadLink" class="primary" download="cinemotion.mp4">Herunterladen</a>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>CineMotion AI &middot; laeuft vollstaendig lokal auf dieser Maschine &middot; keine Bilder verlassen den Server</footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
