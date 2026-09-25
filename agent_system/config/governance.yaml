@@ -1,0 +1,32 @@
+# ===========================================================================
+# GOVERNANCE - Owner-Regel (nur der Owner bearbeitet diese Datei)
+# ===========================================================================
+# Kein Agent darf ohne ausdrueckliche Freigabe des Owners einen Auftrag
+# beginnen, erweitern, wiederholen oder neu starten. Agenten analysieren,
+# planen und schlagen vor - der Owner entscheidet.
+#
+# Die harten Regeln (welche Aktionen IMMER eine Freigabe brauchen bzw. fuer
+# Agenten verboten sind) stehen zusaetzlich unveraenderlich im Code:
+# agent_system/core/rules.py
+#
+# Jede Aenderung an config/ oder prompts/ macht bereits erteilte, noch nicht
+# gestartete Auftragsfreigaben ungueltig (Konfigurations-Fingerabdruck).
+# ===========================================================================
+
+owner:
+  id: owner              # Kennung des Owners (darf keine Agenten-ID sein)
+  name: Alex
+
+# Nur diese Agenten sind aktiv. Ein neuer Agent in agents.yaml bleibt
+# INAKTIV, bis der Owner ihn hier eintraegt (= Owner-Freigabe fuer neue
+# Agenten). Entfernen = Agent deaktivieren.
+approved_agents:
+  - master
+  - marketing
+  - social
+  - video
+  - creative
+  - research
+  - coding
+  - routine
+  - qa

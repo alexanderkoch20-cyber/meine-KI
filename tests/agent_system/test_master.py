@@ -42,10 +42,23 @@ def test_rule_based_plan_dependencies_follow_foundation_agents(config, empty_bra
     assert social.depends_on == [research.id, marketing.id]
 
 
-def test_unroutable_request_goes_to_fallback_agent(config, empty_brand):
+def test_unclear_request_produces_questions_not_a_fallback_plan(config, empty_brand):
     master, _ = _master(config, empty_brand)
     plan = master.plan(Job(request="Hallo, wie geht's?"))
-    assert [s.agent_id for s in plan.steps] == [config.orchestration.fallback_agent]
+    assert plan.steps == []
+    assert plan.questions and "Was genau soll entstehen" in plan.questions[0]
+
+
+def test_llm_can_ask_questions_instead_of_planning(config, empty_brand):
+    master, _ = _master(config, empty_brand, ['{"questions": ["Fuer welches Produkt?"]}'])
+    plan = master.plan(Job(request="Mach mal Marketing"))
+    assert plan.steps == [] and plan.questions == ["Fuer welches Produkt?"]
+
+
+def test_master_prompt_contains_owner_rule(config, empty_brand):
+    master, _ = _master(config, empty_brand)
+    assert "Du startest nichts selbst" in master.system_prompt
+    assert "Owner-Regel" in master.system_prompt
 
 
 def test_valid_llm_plan_is_used(config, empty_brand):

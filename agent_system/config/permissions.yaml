@@ -8,6 +8,10 @@
 # Unbekannte Aktionen werden IMMER wie "require_approval" behandelt
 # (sicherer Default).
 #
+# Harte Regeln aus agent_system/core/rules.py gelten zusaetzlich und lassen
+# sich hier NICHT aufweichen (ein "allow" fuer eine geschuetzte Aktion fuehrt
+# zu einem Konfigurationsfehler).
+#
 # Wichtig: Selbst nach Freigabe wird in dieser Ausbaustufe nichts real
 # ausgefuehrt - es gibt noch keine Executor fuer externe Aktionen
 # (Dry-Run). Die Freigabe wird nur protokolliert.
@@ -52,7 +56,72 @@ actions:
     policy: require_approval
     description: Video ueber die Bild-zu-Video-KI rendern lassen
 
+  connect_external_account:
+    policy: require_approval
+    description: Externen Account verbinden (Social Media, Shop, Werbekonto)
+  activate_external_service:
+    policy: require_approval
+    description: Externen Dienst aktivieren (z.B. Claude-API, Replicate)
+  use_api_key:
+    policy: require_approval
+    description: Einen API-Schluessel verwenden
+  delete_data:
+    policy: require_approval
+    description: Daten loeschen
+  reset_files:
+    policy: require_approval
+    description: Dateien zuruecksetzen
+  revert_commit:
+    policy: require_approval
+    description: Git-Revert durchfuehren
+  reset_commits:
+    policy: require_approval
+    description: Commits zuruecksetzen (git reset)
+
+  # --- Eingriffe in die Workforce: nur mit Freigabe ----------------------
+  create_agent:
+    policy: require_approval
+    description: Neuen Agenten erstellen
+  enable_agent:
+    policy: require_approval
+    description: Agenten aktivieren
+  disable_agent:
+    policy: require_approval
+    description: Agenten deaktivieren
+  change_config:
+    policy: require_approval
+    description: Konfiguration aendern
+  change_model:
+    policy: require_approval
+    description: Modell wechseln
+
+  # --- Empfehlungen zu Auftraegen (jeder Agent darf sie VORSCHLAGEN) -------
+  start_new_task:
+    policy: require_approval
+    description: Empfehlung fuer einen neuen Auftrag
+  extend_task:
+    policy: require_approval
+    description: Empfehlung, den Auftrag zu erweitern
+  retry_task:
+    policy: require_approval
+    description: Empfehlung, den Auftrag erneut auszufuehren
+  request_owner_decision:
+    policy: require_approval
+    description: Agent braucht eine Entscheidung des Owners (stoppt den Auftrag)
+
   # --- grundsaetzlich verboten -------------------------------------------
   reveal_secret:
     policy: deny
     description: API-Schluessel oder Passwoerter ausgeben/anzeigen
+  modify_permissions:
+    policy: deny
+    description: Berechtigungen aendern oder erweitern (nur der Owner, per Datei)
+  modify_governance:
+    policy: deny
+    description: Governance-/Sicherheitsregeln aendern (nur der Owner, per Datei)
+  approve_task:
+    policy: deny
+    description: Auftraege freigeben (nur der Owner)
+  approve_action:
+    policy: deny
+    description: Aktionen freigeben (nur der Owner)

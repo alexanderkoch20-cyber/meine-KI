@@ -13,6 +13,8 @@ Fluss:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -28,14 +30,19 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-class JobStatus(str, Enum):
-    CREATED = "created"
-    PLANNING = "planning"
+class TaskStatus(str, Enum):
+    """Lebenszyklus eines Auftrags (Owner-Regel).
+
+    DRAFT -> WAITING_FOR_OWNER -> APPROVED -> RUNNING -> COMPLETED | FAILED
+    Nur der Owner setzt APPROVED bzw. CANCELLED. Ein laufender Auftrag, der
+    eine Entscheidung braucht, geht zurueck auf WAITING_FOR_OWNER.
+    """
+
+    DRAFT = "draft"
+    WAITING_FOR_OWNER = "waiting_for_owner"
+    APPROVED = "approved"
     RUNNING = "running"
-    QA_REVIEW = "qa_review"
-    AWAITING_APPROVAL = "awaiting_approval"
     COMPLETED = "completed"
-    PARTIALLY_COMPLETED = "partially_completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
@@ -66,7 +73,10 @@ class MessageType(str, Enum):
     TASK_RESULT = "task_result"
     QA_REQUEST = "qa_request"
     QA_REPORT = "qa_report"
+    PLAN_PROPOSAL = "plan_proposal"
+    OWNER_DECISION = "owner_decision"
     APPROVAL_REQUEST = "approval_request"
+    STOP_REPORT = "stop_report"
     ERROR = "error"
     FINAL_RESULT = "final_result"
 
@@ -117,6 +127,10 @@ class ProposedAction:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "ProposedAction":
+        return cls(**d)
+
 
 # ---------------------------------------------------------------------------
 # Auftrag / Ergebnis eines Spezial-Agenten
@@ -133,8 +147,10 @@ class AgentRequest:
     brand_context: str = ""
     #: Ergebnisse vorheriger Schritte, von denen dieser Schritt abhaengt.
     upstream_results: dict[str, str] = field(default_factory=dict)
-    #: Rueckmeldung der QA bei einer Ueberarbeitungsrunde.
+    #: Rueckmeldung der QA bei einer (vom Owner erlaubten) Ueberarbeitungsrunde.
     revision_feedback: list[str] = field(default_factory=list)
+    #: Antworten/Entscheidungen des Owners zu diesem Auftrag.
+    owner_notes: list[str] = field(default_factory=list)
     attempt: int = 1
 
 
@@ -152,6 +168,12 @@ class AgentResponse:
         d["proposed_actions"] = [a.to_dict() for a in self.proposed_actions]
         return d
 
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "AgentResponse":
+        d = dict(d)
+        d["proposed_actions"] = [ProposedAction.from_dict(a) for a in d.get("proposed_actions", [])]
+        return cls(**d)
+
 
 # ---------------------------------------------------------------------------
 # Qualitaetssicherung
@@ -167,16 +189,22 @@ class QAIssue:
     def to_dict(self) -> dict[str, Any]:
         return {"check": self.check, "message": self.message, "severity": self.severity.value}
 
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "QAIssue":
+        return cls(check=d["check"], message=d["message"], severity=Severity(d["severity"]))
+
 
 @dataclass
 class QAReport:
     step_id: str
     verdict: QAVerdict
     issues: list[QAIssue] = field(default_factory=list)
-    #: Aktionen, die nur mit ausdruecklicher Freigabe des Nutzers laufen duerfen.
+    #: Aktionen, die nur mit ausdruecklicher Freigabe des Owners laufen duerfen.
     approval_required: list[ProposedAction] = field(default_factory=list)
     #: Aktionen, die grundsaetzlich verboten sind.
     denied_actions: list[ProposedAction] = field(default_factory=list)
+    #: Der Agent braucht eine Entscheidung des Owners -> Auftrag stoppt.
+    owner_decisions: list[ProposedAction] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -185,7 +213,20 @@ class QAReport:
             "issues": [i.to_dict() for i in self.issues],
             "approval_required": [a.to_dict() for a in self.approval_required],
             "denied_actions": [a.to_dict() for a in self.denied_actions],
+            "owner_decisions": [a.to_dict() for a in self.owner_decisions],
         }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "QAReport":
+        acts = lambda key: [ProposedAction.from_dict(a) for a in d.get(key, [])]  # noqa: E731
+        return cls(
+            step_id=d["step_id"],
+            verdict=QAVerdict(d["verdict"]),
+            issues=[QAIssue.from_dict(i) for i in d.get("issues", [])],
+            approval_required=acts("approval_required"),
+            denied_actions=acts("denied_actions"),
+            owner_decisions=acts("owner_decisions"),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -218,23 +259,60 @@ class PlanStep:
             "error": self.error,
         }
 
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "PlanStep":
+        return cls(
+            agent_id=d["agent_id"],
+            instruction=d["instruction"],
+            depends_on=list(d.get("depends_on", [])),
+            id=d["id"],
+            status=StepStatus(d["status"]),
+            attempts=d.get("attempts", 0),
+            result=AgentResponse.from_dict(d["result"]) if d.get("result") else None,
+            qa_report=QAReport.from_dict(d["qa_report"]) if d.get("qa_report") else None,
+            error=d.get("error"),
+        )
+
 
 @dataclass
 class Plan:
     steps: list[PlanStep]
     rationale: str = ""
     source: str = "rules"  # "llm" oder "rules"
+    #: Rueckfragen des Masters bei unklarem Auftrag (dann gibt es keine Schritte).
+    questions: list[str] = field(default_factory=list)
+
+    def fingerprint(self) -> str:
+        """Fingerabdruck des Plans. Eine Owner-Freigabe gilt nur fuer genau
+        diesen Plan - jede Aenderung (neuer Schritt, andere Anweisung) macht
+        sie ungueltig. So kann ein Auftrag nicht unbemerkt erweitert werden."""
+        canonical = [
+            {"id": s.id, "agent": s.agent_id, "instruction": s.instruction, "depends_on": s.depends_on}
+            for s in self.steps
+        ]
+        raw = json.dumps(canonical, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()[:16]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "rationale": self.rationale,
             "source": self.source,
+            "fingerprint": self.fingerprint(),
+            "questions": list(self.questions),
             "steps": [s.to_dict() for s in self.steps],
         }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Plan":
+        return cls(steps=[PlanStep.from_dict(s) for s in d.get("steps", [])],
+                   rationale=d.get("rationale", ""), source=d.get("source", "rules"),
+                   questions=list(d.get("questions", [])))
 
 
 @dataclass
 class ApprovalRequest:
+    """Owner-Freigabe fuer eine einzelne vorgeschlagene AKTION."""
+
     job_id: str
     step_id: str
     action: ProposedAction
@@ -253,37 +331,50 @@ class ApprovalRequest:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ApprovalRequest":
         d = dict(d)
-        d["action"] = ProposedAction(**d["action"])
+        d["action"] = ProposedAction.from_dict(d["action"])
         return cls(**d)
 
 
 @dataclass
 class Job:
+    """Ein Auftrag des Owners (Task)."""
+
     request: str
-    requested_by: str = "user"
+    requested_by: str = "owner"
     id: str = field(default_factory=lambda: new_id("job"))
-    status: JobStatus = JobStatus.CREATED
+    status: TaskStatus = TaskStatus.DRAFT
     plan: Plan | None = None
+    #: Zaehlt, wie oft der Auftrag dem Owner vorgelegt wurde. Jede Freigabe
+    #: gilt nur fuer genau eine Runde.
+    approval_round: int = 0
+    #: Rueckfragen an den Owner - solange offen, ist keine Freigabe moeglich.
+    open_questions: list[str] = field(default_factory=list)
+    owner_notes: list[str] = field(default_factory=list)
+    #: Warum der Auftrag gestoppt hat (Fehler, Entscheidung noetig, ...).
+    stop_reason: str | None = None
+    recommendations: list[str] = field(default_factory=list)
     final_output: str | None = None
     error: str | None = None
     approvals: list[str] = field(default_factory=list)
+    llm_calls: int = 0
+    #: ID des Auftrags, aus dem dieser (per Owner-Entscheidung) neu erstellt wurde.
+    resubmitted_from: str | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)
     history: list[dict[str, str]] = field(default_factory=list)
     created_at: str = field(default_factory=utcnow)
     updated_at: str = field(default_factory=utcnow)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "request": self.request,
-            "requested_by": self.requested_by,
-            "status": self.status.value,
-            "plan": self.plan.to_dict() if self.plan else None,
-            "final_output": self.final_output,
-            "error": self.error,
-            "approvals": list(self.approvals),
-            "trace": list(self.trace),
-            "history": list(self.history),
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-        }
+        d = {f: getattr(self, f) for f in self.__dataclass_fields__}
+        d["status"] = self.status.value
+        d["plan"] = self.plan.to_dict() if self.plan else None
+        for key in ("open_questions", "owner_notes", "recommendations", "approvals", "trace", "history"):
+            d[key] = list(d[key])
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Job":
+        d = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
+        d["status"] = TaskStatus(d["status"])
+        d["plan"] = Plan.from_dict(d["plan"]) if d.get("plan") else None
+        return cls(**d)

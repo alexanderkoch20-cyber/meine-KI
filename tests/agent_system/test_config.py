@@ -74,3 +74,73 @@ def test_llm_client_factory(config_dir):
     _edit(config_dir / "models.yaml", lambda d: d.update(provider="other"))
     with pytest.raises(ConfigError):
         create_llm_client(load_config(config_dir))
+
+
+def test_config_is_immutable_at_runtime(config):
+    import dataclasses
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        config.provider = "anthropic"
+    with pytest.raises(TypeError):
+        config.action_policies["publish_content"] = "allow"
+    with pytest.raises(TypeError):
+        config.agents["evil"] = config.agents["social"]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        config.governance.owner_id = "social"
+
+
+@pytest.mark.parametrize("action", ["publish_content", "spend_money", "revert_commit", "reset_files",
+                                    "delete_data", "create_agent", "change_model", "start_new_task"])
+def test_protected_actions_can_never_be_set_to_allow(config_dir, action):
+    _edit(config_dir / "permissions.yaml", lambda d: d["actions"].setdefault(action, {}).update(policy="allow"))
+    with pytest.raises(ConfigError, match="Owner-Regel"):
+        load_config(config_dir)
+
+
+def test_forbidden_actions_must_stay_denied(config_dir):
+    _edit(config_dir / "permissions.yaml",
+          lambda d: d["actions"]["modify_permissions"].update(policy="require_approval"))
+    with pytest.raises(ConfigError, match="immer verboten"):
+        load_config(config_dir)
+
+
+def test_default_policy_allow_is_forbidden(config_dir):
+    _edit(config_dir / "permissions.yaml", lambda d: d.update(default_policy="allow"))
+    with pytest.raises(ConfigError):
+        load_config(config_dir)
+
+
+def test_new_agent_without_owner_approval_is_inactive(config_dir):
+    def add_agent(d):
+        d["agents"]["seo"] = {"name": "SEO-Agent", "role": "specialist", "model_tier": "sonnet",
+                              "prompt_file": "marketing.md", "keywords": ["seo"],
+                              "allowed_actions": ["create_draft"]}
+    _edit(config_dir / "agents.yaml", add_agent)
+    cfg = load_config(config_dir)
+    assert "seo" not in cfg.agents and cfg.inactive_agents == ("seo",)
+
+    _edit(config_dir / "governance.yaml", lambda d: d["approved_agents"].append("seo"))
+    assert "seo" in load_config(config_dir).agents  # erst nach Owner-Eintrag aktiv
+
+
+def test_removing_agent_from_governance_deactivates_it(config_dir):
+    _edit(config_dir / "governance.yaml", lambda d: d["approved_agents"].remove("coding"))
+    cfg = load_config(config_dir)
+    assert "coding" not in cfg.agents and "coding" in cfg.inactive_agents
+
+
+def test_master_and_qa_must_be_approved(config_dir):
+    _edit(config_dir / "governance.yaml", lambda d: d["approved_agents"].remove("qa"))
+    with pytest.raises(ConfigError, match="Pflicht-Agenten"):
+        load_config(config_dir)
+
+
+def test_owner_id_cannot_be_an_agent(config_dir):
+    _edit(config_dir / "governance.yaml", lambda d: d["owner"].update(id="master"))
+    with pytest.raises(ConfigError, match="Owner-ID"):
+        load_config(config_dir)
+
+
+def test_fingerprint_changes_when_config_changes(config_dir):
+    before = load_config(config_dir).fingerprint
+    _edit(config_dir / "models.yaml", lambda d: d["tiers"]["sonnet"].update(temperature=0.1))
+    assert load_config(config_dir).fingerprint != before

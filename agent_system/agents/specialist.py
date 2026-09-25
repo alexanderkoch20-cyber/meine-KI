@@ -23,6 +23,9 @@ class SpecialistAgent(BaseAgent):
             parts.append("## Ergebnisse anderer Agenten (als Grundlage nutzen)")
             for agent_id, content in req.upstream_results.items():
                 parts.append(f"### {agent_id}\n{content}")
+        if req.owner_notes:
+            parts.append("## Antworten/Entscheidungen des Owners (verbindlich)\n"
+                         + "\n".join(f"- {n}" for n in req.owner_notes))
         if req.revision_feedback:
             parts.append("## QA-Rueckmeldung - bitte ueberarbeiten\n"
                          + "\n".join(f"- {f}" for f in req.revision_feedback))

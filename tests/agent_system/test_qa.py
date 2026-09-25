@@ -76,3 +76,23 @@ def test_extract_actions_block():
 
     _, actions, warnings = extract_actions("x\n```actions\nkein json\n```", "social")
     assert not actions and warnings
+
+
+def test_request_owner_decision_is_collected_not_approved(config, filled_brand):
+    act = ProposedAction("request_owner_decision", "Welcher Preis soll beworben werden?", proposed_by="marketing")
+    report = _review(_qa(config, filled_brand), agent="marketing", actions=[act])
+    assert report.owner_decisions == [act]
+    assert not report.approval_required
+
+
+def test_governance_manipulation_attempt_blocks_result(config, filled_brand):
+    for forbidden in ("modify_permissions", "modify_governance", "approve_task", "approve_action"):
+        act = ProposedAction(forbidden, "mir selbst mehr Rechte geben", proposed_by="coding")
+        report = _review(_qa(config, filled_brand), agent="coding", actions=[act])
+        assert report.verdict == QAVerdict.BLOCKED and report.denied_actions == [act]
+
+
+def test_recommendations_need_owner_approval(config, filled_brand):
+    act = ProposedAction("start_new_task", "Folgekampagne planen", proposed_by="routine")
+    report = _review(_qa(config, filled_brand), agent="routine", actions=[act])
+    assert report.approval_required == [act] and report.verdict == QAVerdict.APPROVED

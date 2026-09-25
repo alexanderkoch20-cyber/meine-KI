@@ -114,11 +114,11 @@ class AnthropicLLMClient:
 class BudgetedLLMClient:
     """Wrapper, der die Anzahl der LLM-Aufrufe pro Job begrenzt."""
 
-    def __init__(self, inner: LLMClient, max_calls: int):
+    def __init__(self, inner: LLMClient, max_calls: int, already_used: int = 0):
         self.inner = inner
         self.name = inner.name
         self.max_calls = max_calls
-        self.calls = 0
+        self.calls = already_used
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         if self.calls >= self.max_calls:

@@ -7,7 +7,8 @@ Die Pruefung ist zweistufig:
    - verbotene Woerter aus den Brand-No-Go-Regeln -> NEEDS_REVISION
    - unlesbarer actions-Block
    - Berechtigungspruefung jeder vorgeschlagenen Aktion
-     (deny -> blockiert, require_approval -> Freigabe durch Nutzer)
+     (deny -> blockiert, require_approval -> Freigabe durch den Owner,
+     request_owner_decision -> Auftrag stoppt und meldet sich beim Owner)
 2. **LLM-Review** (optional): Das Modell kann zusaetzliche inhaltliche
    Probleme melden. Das Ergebnis kann das Urteil nur VERSCHAERFEN, nie
    entschaerfen - die Regeln aus Stufe 1 lassen sich nicht aushebeln.
@@ -20,6 +21,7 @@ import re
 from ..core.errors import AgentSystemError
 from ..core.models import AgentRequest, AgentResponse, QAIssue, QAReport, QAVerdict, Severity
 from ..core.permissions import Decision, PermissionPolicy
+from ..core.rules import AGENT_FORBIDDEN_ACTIONS, STOP_FOR_DECISION_ACTION
 from ..core.secrets import contains_secret
 from .base import BaseAgent, parse_json_object
 
@@ -55,10 +57,17 @@ class QAAgent(BaseAgent):
 
         # --- Aktionen ---
         for action in resp.proposed_actions:
+            if action.action == STOP_FOR_DECISION_ACTION:
+                report.owner_decisions.append(action)
+                issues.append(QAIssue("owner_decision",
+                                      f"Agent braucht eine Entscheidung des Owners: {action.description}",
+                                      Severity.INFO))
+                continue
             result = self.policy.check(resp.agent_id, action.action)
             if result.decision == Decision.DENY:
                 report.denied_actions.append(action)
-                severity = Severity.CRITICAL if action.action == "reveal_secret" else Severity.ERROR
+                # Versuch, Secrets/Governance/Freigaben anzufassen -> Ergebnis blockieren
+                severity = Severity.CRITICAL if action.action in AGENT_FORBIDDEN_ACTIONS else Severity.ERROR
                 issues.append(QAIssue("permissions", f"Aktion blockiert: {result.reason}", severity))
             elif result.decision == Decision.REQUIRE_APPROVAL:
                 report.approval_required.append(action)
@@ -72,7 +81,7 @@ class QAAgent(BaseAgent):
                                   Severity.INFO))
 
         report.verdict = self._verdict_from(issues)
-        # Aktionen blockieren den Inhalt nicht - ausser beim Versuch, Secrets auszugeben.
+        # Verbotene Aktionen blockieren den Inhalt nur bei Governance-/Secret-Versuchen.
         report.verdict = self._merge(report.verdict, self._llm_review(req, resp, issues))
         return report
 

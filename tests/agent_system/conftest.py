@@ -51,6 +51,22 @@ def filled_brand(tmp_path) -> BrandKnowledge:
 
 
 @pytest.fixture
+def owner(config):
+    from agent_system.core.governance import owner_session
+    return owner_session(config)
+
+
+@pytest.fixture
+def run_approved(owner):
+    """Owner-Ablauf: Auftrag erteilen -> Plan freigeben -> ausfuehren."""
+    def _run(orch, request):
+        job = orch.submit(request, owner)
+        orch.approve(job.id, owner, job.plan.fingerprint())
+        return orch.execute(job.id)
+    return _run
+
+
+@pytest.fixture
 def make_orch(config, empty_brand, tmp_path):
     def _make(llm=None, brand=None, cfg=None, data_dir=None):
         return Orchestrator(

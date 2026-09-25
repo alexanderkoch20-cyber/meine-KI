@@ -72,3 +72,22 @@ class BudgetExceededError(AgentSystemError):
     """Das LLM-Aufruf-Budget eines Jobs ist aufgebraucht (nicht wiederholbar)."""
 
     code = "budget_exceeded"
+
+
+class OwnerApprovalRequiredError(AgentSystemError):
+    """Eine Handlung braucht die ausdrueckliche Freigabe des Owners."""
+
+    code = "owner_approval_required"
+
+
+class GovernanceViolationError(AgentSystemError):
+    """Ein Nicht-Owner hat versucht, eine Owner-Handlung auszufuehren oder
+    Governance-Regeln zu umgehen. Wird immer im Audit-Log festgehalten."""
+
+    code = "governance_violation"
+
+
+class ClarificationRequiredError(AgentSystemError):
+    """Der Auftrag ist unklar - der Owner muss zuerst Rueckfragen beantworten."""
+
+    code = "clarification_required"

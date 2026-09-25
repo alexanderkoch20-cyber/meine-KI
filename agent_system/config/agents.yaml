@@ -9,7 +9,9 @@
 #   keywords        Stichworte fuer das regelbasierte Fallback-Routing.
 #                   Ganzes Wort, ausser mit '*' am Ende (dann Wortanfang,
 #                   z.B. 'kampagne*' trifft auch 'Kampagnen')
-#   allowed_actions Aktionen, die dieser Agent VORSCHLAGEN darf. Alles andere
+#   allowed_actions Aktionen, die dieser Agent VORSCHLAGEN darf (plus die
+#                   Empfehlungen start_new_task/extend_task/retry_task/
+#                   request_owner_decision, siehe core/rules.py). Alles andere
 #                   wird von der QA abgelehnt (Least Privilege).
 
 agents:
@@ -146,11 +148,14 @@ agents:
     allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
 
 orchestration:
-  # Agent fuer Auftraege, die keinem Spezialisten eindeutig zuzuordnen sind.
-  fallback_agent: marketing
-  # Wiederholungen bei technischen Fehlern (LLM-Timeout etc.) pro Schritt.
-  max_retries: 2
-  # Ueberarbeitungsrunden, wenn die QA "needs_revision" meldet.
-  max_revisions: 1
+  # Owner-Regel: Standardmaessig wird NICHTS automatisch wiederholt. Schlaegt
+  # ein Schritt fehl oder verlangt die QA eine Ueberarbeitung, stoppt der
+  # Auftrag und meldet sich beim Owner.
+  # Werte > 0 sind eine stehende Owner-Freigabe fuer technische
+  # Wiederholungen INNERHALB eines bereits freigegebenen Auftrags - nur der
+  # Owner darf sie setzen. Unklare Auftraege werden nie an einen
+  # "Fallback-Agenten" gegeben, sondern fuehren zu Rueckfragen.
+  max_retries: 0
+  max_revisions: 0
   # Maximale Anzahl Teilaufgaben pro Auftrag.
   max_steps: 8

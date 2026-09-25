@@ -2,12 +2,14 @@
 
 Zwei Ebenen:
 1. **Agenten-Ebene (Least Privilege):** Ein Agent darf nur Aktionen
-   vorschlagen, die in seinen ``allowed_actions`` stehen.
+   vorschlagen, die in seinen ``allowed_actions`` stehen - plus die
+   Empfehlungen aus ``rules.ALWAYS_PROPOSABLE_ACTIONS``.
 2. **Aktions-Ebene:** Jede Aktion hat eine Policy (allow / require_approval /
    deny). Unbekannte Aktionen -> ``default_policy`` (require_approval).
+   ``rules.AGENT_FORBIDDEN_ACTIONS`` sind immer ``deny``.
 
-Freigaben werden ausschliesslich ueber ``ApprovalStore.decide()`` erteilt -
-das ist die einzige Stelle, an der der Nutzer eingreift. Es gibt in dieser
+Freigaben erteilt ausschliesslich der Owner ueber das
+``OwnerApprovalGate`` (governance.py), das ``ApprovalStore.decide()`` aufruft. Es gibt in dieser
 Ausbaustufe KEINE Executor fuer externe Aktionen: Auch freigegebene Aktionen
 werden nur protokolliert (Dry-Run).
 """
@@ -21,9 +23,11 @@ from enum import Enum
 from pathlib import Path
 
 from .config import SystemConfig
-from .errors import AgentSystemError
+from .errors import AgentSystemError, GovernanceViolationError
+from .governance import Actor
 from .logging_setup import get_logger
 from .models import ApprovalRequest, ProposedAction, utcnow
+from .rules import AGENT_FORBIDDEN_ACTIONS, ALWAYS_PROPOSABLE_ACTIONS
 
 log = get_logger("permissions")
 
@@ -50,10 +54,10 @@ class PermissionPolicy:
             return PermissionResult(Decision.DENY, f"Unbekannter Agent '{agent_id}'")
 
         policy = self._config.action_policies.get(action)
-        if policy == Decision.DENY.value:
+        if policy == Decision.DENY.value or action in AGENT_FORBIDDEN_ACTIONS:
             return PermissionResult(Decision.DENY, f"Aktion '{action}' ist grundsaetzlich verboten")
 
-        if action not in agent.allowed_actions:
+        if action not in agent.allowed_actions and action not in ALWAYS_PROPOSABLE_ACTIONS:
             return PermissionResult(
                 Decision.DENY,
                 f"Agent '{agent_id}' ist nicht berechtigt, '{action}' vorzuschlagen",
@@ -111,8 +115,11 @@ class ApprovalStore:
     def all(self) -> list[ApprovalRequest]:
         return list(self._items.values())
 
-    def decide(self, approval_id: str, approve: bool, decided_by: str = "user") -> ApprovalRequest:
-        """Einzige Stelle, an der eine Freigabe erteilt/abgelehnt wird."""
+    def decide(self, approval_id: str, approve: bool, actor: Actor) -> ApprovalRequest:
+        """Freigabe erteilen/ablehnen. Aufruf nur ueber ``OwnerApprovalGate.decide_action``."""
+        if not actor.is_owner:
+            raise GovernanceViolationError(f"'{actor.id}' darf keine Aktionen freigeben - nur der Owner")
+        decided_by = actor.id
         with self._lock:
             apr = self.get(approval_id)
             if apr.status != "pending":

@@ -1,39 +1,130 @@
 # Agentensystem (agent_system)
 
-Eine echte Agenten-Orchestrierung statt neun einzelner Chatbots:
+Eine echte Agenten-Orchestrierung statt neun einzelner Chatbots - unter der
+**Owner-Regel**: Der Owner ist alleiniger Eigentuemer der Brand und der
+gesamten AI-Workforce. Kein Agent beginnt, erweitert oder wiederholt einen
+Auftrag ohne seine ausdrueckliche Freigabe.
 
 ```
-User ──▶ Master-Agent ──▶ Spezial-Agenten ──▶ QA-Agent ──▶ Master-Agent ──▶ User
-            (Opus)          (Sonnet/Haiku)      (Regeln + LLM)   (Synthese)
+Owner ──▶ Master-Agent ──▶ PLAN ──▶ Owner-Freigabe ──▶ Spezial-Agenten ──▶ QA ──▶ Master ──▶ Owner
+           (analysiert,     (waiting_     (OwnerApproval-      (arbeiten)       (prueft)  (Bericht)
+            plant nur)       for_owner)    Gate)
 ```
 
 Der aktuelle Stand laeuft **komplett offline** (Mock-LLM): keine API-Kosten,
-keine Netzwerkaufrufe, keine externen Aktionen. Die Architektur ist aber
-vollstaendig - fuer den Produktivbetrieb wird nur der LLM-Client getauscht.
+keine Netzwerkaufrufe, keine externen Aktionen, keine verbundenen Accounts.
 
-## Schnellstart
+## Schnellstart (Owner-Ablauf)
 
 ```bash
 pip install -r requirements-agents.txt
-python -m agent_system agents                 # Agenten + Modelle
-python -m agent_system brand check            # Was fehlt im Brand-Wissen?
-python -m agent_system run "Recherchiere Trends und plane eine Kampagne mit Instagram-Reels"
-python -m agent_system jobs                   # alle Jobs
-python -m agent_system jobs JOB_ID            # kompletter Job inkl. Plan, QA, Trace
-python -m agent_system approvals              # offene Freigaben
-python -m agent_system approve APR_ID         # Freigabe erteilen (Dry-Run!)
-python -m agent_system reject  APR_ID
+
+python -m agent_system submit "Recherchiere Trends und plane eine Kampagne mit Instagram-Reels"
+#   -> Master legt einen Plan vor. Status: waiting_for_owner. NICHTS laeuft.
+python -m agent_system show JOB_ID                    # Plan + Fingerabdruck pruefen
+python -m agent_system approve JOB_ID --plan FP       # Freigabe GENAU dieses Plans
+python -m agent_system start JOB_ID                   # Ausfuehrung (nur wenn freigegeben)
+
+python -m agent_system clarify JOB_ID "Antwort"       # Rueckfrage beantworten / entscheiden
+python -m agent_system cancel JOB_ID                  # Auftrag abbrechen
+python -m agent_system resubmit JOB_ID                # gescheiterten Auftrag NEU vorlegen (neue Freigabe)
+python -m agent_system tasks                          # alle Auftraege
+
+python -m agent_system actions                        # Aktionsvorschlaege der Agenten
+python -m agent_system approve-action APR_ID          # entscheiden (Dry-Run, nichts wird ausgefuehrt)
+python -m agent_system reject-action  APR_ID
+
+python -m agent_system audit [--job JOB_ID]           # Audit-Log + Integritaetspruefung
+python -m agent_system agents                         # Agenten, Modelle, inaktive Agenten
+python -m agent_system brand check                    # Was fehlt im Brand-Wissen?
+
 pytest tests/agent_system
 ```
 
-Jobs, Freigaben und Logs landen in `data/agent_system/` (per `--data-dir`
-oder `AGENT_SYSTEM_DATA_DIR` aenderbar, nicht versioniert).
+Jobs, Freigaben, Audit-Log und Logs liegen in `data/agent_system/`
+(per `--data-dir` oder `AGENT_SYSTEM_DATA_DIR` aenderbar, nicht versioniert).
+
+## Owner-Regel: wie sie technisch durchgesetzt wird
+
+### Task-Status
+
+| Status | Bedeutung | Wer setzt ihn |
+|---|---|---|
+| `draft` | Auftrag angelegt, Master analysiert | System (kurz, innerhalb von `submit`) |
+| `waiting_for_owner` | Plan / Rueckfrage / Entscheidung liegt beim Owner | System |
+| `approved` | Owner hat genau diesen Plan freigegeben | **nur Owner** |
+| `running` | wird ausgefuehrt | System, nur nach Gate-Pruefung |
+| `completed` | fertig | System |
+| `failed` | gestoppt nach Fehler - kein Auto-Neustart | System |
+| `cancelled` | abgebrochen | **nur Owner** |
+
+Erlaubte Uebergaenge (`core/jobs.py`):
+`draft → waiting_for_owner → approved → running → completed | failed`,
+`running → waiting_for_owner` (Agent braucht Entscheidung),
+`approved → waiting_for_owner` (Konfiguration seit Freigabe geaendert),
+`cancelled` aus draft/waiting/approved. Endzustaende sind endgueltig.
+Agenten duerfen den Status **gar nicht** aendern.
+
+### Die Schutzschichten
+
+1. **OwnerApproval-Gate** (`core/governance.py`) - einzige Stelle fuer
+   Freigaben. Prueft, dass der Akteur der in `governance.yaml` konfigurierte
+   Owner ist, und speichert einen Freigabe-Datensatz, gebunden an
+   Auftrag + Vorlagerunde + **Plan-Fingerabdruck** + **Konfigurations-Fingerabdruck**.
+2. **Ausfuehrungs-Pruefung** - `execute()` laeuft nur, wenn Status `approved`
+   UND ein passender Datensatz existiert. Ein manipulierter Status, eine
+   veraenderte Job-Datei, ein nachtraeglich erweiterter Plan oder eine
+   geaenderte Konfiguration -> Ausfuehrung verweigert und protokolliert.
+3. **Message-Bus-Sperre** - Arbeitsauftraege an Spezial-Agenten werden nur
+   zugestellt, wenn der Auftrag `running` ist.
+4. **Unveraenderliche Regeln im Code** (`core/rules.py`) - Aktionen wie
+   Geld, Veroeffentlichen, Kundenkontakt, Loeschen, Revert/Reset, neue
+   Agenten, Modell-/Konfig-Wechsel, externe Dienste, API-Keys, neue/erweiterte/
+   wiederholte Auftraege brauchen **immer** eine Owner-Freigabe; setzt
+   `permissions.yaml` sie auf `allow`, startet das System nicht.
+   Berechtigungen/Governance aendern, Freigaben erteilen und Secrets ausgeben
+   ist fuer Agenten **immer verboten**.
+5. **Unveraenderliche Konfiguration zur Laufzeit** - `SystemConfig` ist
+   frozen, alle Mappings schreibgeschuetzt. Agenten erhalten nie ein
+   Owner-Objekt.
+6. **Agenten-Freigabe** - nur Agenten in `governance.yaml: approved_agents`
+   sind aktiv. Ein neuer Agent in `agents.yaml` bleibt inaktiv, bis der Owner
+   ihn eintraegt.
+7. **Audit-Log** (`data/agent_system/audit.jsonl`) - append-only mit
+   Hash-Kette: Auftrag erstellt, Plan vorgelegt, freigegeben, gestartet,
+   Aktionen vorgeschlagen/entschieden, Stopps, Fehler, jeder
+   Regelverstoss. `audit` prueft die Integritaet; nachtraegliche Aenderungen
+   werden erkannt. Secrets sind geschwaerzt.
+
+### Stoppen statt selbststaendig handeln
+
+- **Unklarer Auftrag** -> keine Planung, Rueckfrage an den Owner. Freigabe
+  erst nach `clarify` (dann neuer Plan -> neue Pruefung).
+- **Fehler / QA lehnt ab** -> Auftrag stoppt sofort (`failed`), restliche
+  Schritte werden nicht ausgefuehrt, Bericht mit Empfehlung. Kein
+  automatischer Neustart; `resubmit` erzeugt auf Owner-Anweisung einen
+  NEUEN Auftrag, der wieder freigegeben werden muss.
+- **Agent braucht Entscheidung** (`request_owner_decision`) -> Auftrag
+  pausiert (`waiting_for_owner`); weiter nur mit `clarify` + `approve`.
+  Bereits erledigte Schritte werden nicht wiederholt.
+- **Zusaetzliche Arbeit sinnvoll** -> Agent schlaegt `start_new_task` /
+  `extend_task` / `retry_task` vor. Das erzeugt nur eine Empfehlung - auch
+  nach Freigabe wird kein Auftrag automatisch angelegt.
+- **Automatische Wiederholungen/Ueberarbeitungen**: standardmaessig AUS
+  (`max_retries: 0`, `max_revisions: 0`). Nur der Owner kann sie in
+  `agents.yaml` einschalten; jede Wiederholung wird auditiert.
+- **Aktionsfreigaben sind Dry-Run**: Es gibt noch keine Executor. Eine
+  freigegebene Aktion wird nur protokolliert (`executed: false`).
+
+Ehrliche Einordnung: Das Gate schuetzt vor Fehlverhalten der Agenten-Logik
+und der Modell-Ausgaben (Agenten koennen nur Text liefern). Es ist keine
+Sandbox gegen beliebigen Python-Code im selben Prozess.
 
 ## Agenten
 
 | ID | Rolle | Modell-Stufe | Aufgaben |
 |---|---|---|---|
-| `master` | Orchestrator / CEO | opus | zerlegen, delegieren, zusammenfuehren |
+| `master` | Orchestrator / CEO | opus | analysieren, planen, vorlegen, zusammenfuehren |
 | `marketing` | Spezialist | sonnet | Strategie, Kampagnen, Angebote, Positionierung, Conversion-Texte |
 | `social` | Spezialist | sonnet | Content-Ideen, Posts, Reels, Content-Kalender, Plattform-Varianten |
 | `video` | Spezialist | sonnet | Konzepte, Storyboards, Prompts, Produktion, spaeter CineMotion |
@@ -41,124 +132,78 @@ oder `AGENT_SYSTEM_DATA_DIR` aenderbar, nicht versioniert).
 | `research` | Spezialist | sonnet | Markt, Wettbewerb, Trends, Zielgruppe, Quellen |
 | `coding` | Spezialist | sonnet | Software, Bugfixes, Tests, Infrastruktur |
 | `routine` | Spezialist | haiku | Formatierung, Klassifizierung, kurze Zusammenfassungen |
-| `qa` | Pruefinstanz | sonnet | Pruefen, Brand-Regeln, riskante Aktionen blockieren, Freigaben |
-
-Modell-IDs stehen nur an einer Stelle: `config/models.yaml`.
+| `qa` | Pruefinstanz | sonnet | Pruefen, Brand-Regeln, riskante Aktionen blockieren, Freigaben verlangen |
 
 ## Projektstruktur
 
 ```
 agent_system/
-  __main__.py          CLI
-  orchestrator.py      Laufzeit-Engine: Plan ausfuehren, Retries, QA-Schleife, Freigaben
+  __main__.py          Owner-CLI
+  orchestrator.py      Phasen Planen / Freigeben / Ausfuehren, Stopp-und-Melden
   config/
-    agents.yaml        Agenten-Definitionen (Rolle, Modell, Keywords, erlaubte Aktionen)
+    governance.yaml    Owner-ID, freigegebene Agenten
+    agents.yaml        Agenten-Definitionen, Orchestrierung (Retries standardmaessig 0)
     models.yaml        Modell-Stufen, LLM-Provider (mock|anthropic), Budget
     permissions.yaml   Aktionen + Policy (allow / require_approval / deny)
-  brand/
-    brand_knowledge.yaml   zentrale Brand-Wissensbasis (hier traegst du ein)
-  prompts/             System-Prompts je Agent + _common.md (Sicherheitsregeln fuer alle)
+  brand/brand_knowledge.yaml   zentrale Brand-Wissensbasis
+  prompts/             System-Prompts je Agent + _common.md (Owner-Regel fuer alle)
   agents/
     base.py            BaseAgent, actions-Block-Parser, JSON-Parser
-    master.py          Planung (LLM-JSON-Plan + regelbasiertes Fallback), Synthese
-    specialist.py      Spezial-Agenten (gemeinsame Schnittstelle), VideoAgent
-    qa.py              QA: Regelpruefung + optionaler LLM-Review
+    master.py          Planung (LLM-JSON-Plan / Stichworte / Rueckfragen), Bericht
+    specialist.py      Spezial-Agenten, VideoAgent
+    qa.py              QA: Regelpruefung, Berechtigungen, Entscheidungs-Signale, LLM-Review
   core/
-    models.py          gemeinsames Datenmodell (Job, Plan, AgentRequest/Response, QAReport, ...)
-    config.py          Laden + Validieren der Konfiguration
-    brand.py           Brand-Knowledge laden, Vollstaendigkeit, Prompt-Kontext
-    bus.py             MessageBus - einziger Kommunikationsweg, schreibt den Trace
-    jobs.py            Job-Store + Zustandsautomat
-    permissions.py     Berechtigungen (Least Privilege) + Freigabe-Store
-    llm.py             LLM-Schnittstelle: MockLLMClient, AnthropicLLMClient (gesperrt), Budget
-    secrets.py         Schwaerzung von API-Schluesseln
-    logging_setup.py   JSON-Logging mit job_id/step_id/agent + Schwaerzung
-    errors.py          Fehlerhierarchie (retryable vs. nicht retryable)
-tests/agent_system/    72 Tests, Netzwerk in Tests hart blockiert
+    rules.py           UNVERAENDERLICHE Owner-Regeln (geschuetzte/verbotene Aktionen)
+    governance.py      Akteure, OwnerApprovalGate, AuditLog (Hash-Kette)
+    jobs.py            Task-Zustandsautomat (mit Akteur-Pruefung) + Job-Store
+    models.py          gemeinsames Datenmodell (TaskStatus, Job, Plan, ...)
+    bus.py             MessageBus (einziger Kommunikationsweg, Ausfuehrungssperre)
+    config.py          Laden + Validieren + Fingerabdruck, frozen
+    permissions.py     Berechtigungen (Least Privilege) + Aktions-Freigabe-Store
+    llm.py             MockLLMClient, AnthropicLLMClient (gesperrt), Budget
+    brand.py, secrets.py, logging_setup.py, errors.py
+tests/agent_system/    145 Tests (davon test_governance.py fuer die Owner-Regel),
+                       Netzwerk in Tests hart blockiert
 ```
 
 ## Wie die Agenten kommunizieren
 
-1. **Nur ueber den MessageBus.** Kein Agent ruft einen anderen direkt auf.
-   Jede Nachricht ist ein `AgentMessage` (sender, recipient, type, job_id,
-   step_id, payload) und wird im `trace` des Jobs protokolliert (Secrets
-   geschwaerzt).
-2. **Feste Schnittstellen:**
-   - Master: `plan(Job) -> Plan` und `synthesize(Job, approvals) -> str`
-   - Spezialist: `handle(AgentRequest) -> AgentResponse`
-   - QA: `review(AgentRequest, AgentResponse) -> QAReport`
-3. **Ablauf eines Jobs** (`created -> planning -> running -> qa_review ->
-   completed | awaiting_approval | partially_completed | failed`):
-   - `user -> master` (task_assignment): Master plant. Zuerst per LLM als
-     JSON-Plan (streng validiert: nur bekannte Spezialisten, gueltige
-     Abhaengigkeiten, keine Zyklen, max. Schrittzahl), bei unbrauchbarer
-     Antwort per Stichwort-Routing.
-   - `master -> spezialist` (task_assignment) je Schritt in
-     Abhaengigkeitsreihenfolge. Ergebnisse vorheriger Schritte werden als
-     `upstream_results` mitgegeben (z.B. Research -> Marketing -> Social).
-   - `spezialist -> master` (task_result), dann `master -> qa`
-     (qa_request) und `qa -> master` (qa_report).
-   - QA-Urteil `needs_revision` -> eine Ueberarbeitungsrunde mit
-     QA-Feedback; bleibt es schlecht oder ist es `blocked`, wird der Inhalt
-     **nicht** ausgeliefert.
-   - `master -> user` (approval_request) fuer jede Aktion mit externer Wirkung,
-     dann `master -> user` (final_result).
-4. **Aktionen:** Agenten fuehren nie etwas aus. Sie schlagen Aktionen in
-   einem ```` ```actions ```` -JSON-Block vor. Die QA prueft jede Aktion:
-   - Darf dieser Agent die Aktion ueberhaupt vorschlagen? (`allowed_actions`)
-   - Policy in `permissions.yaml`: `allow`, `require_approval`, `deny`.
-     Unbekannte Aktionen -> `require_approval`.
+Nur ueber den MessageBus, jede Nachricht landet im Trace des Auftrags:
 
-## Sicherheit
+```
+owner  ─task_assignment─▶ master          (Planung)
+master ─plan_proposal───▶ owner           (Plan / Rueckfragen)
+          ... Owner-Freigabe ueber das Gate ...
+master ─task_assignment─▶ spezialist      (nur wenn Auftrag running)
+spezialist ─task_result─▶ master
+master ─qa_request──────▶ qa ─qa_report─▶ master
+master ─approval_request▶ owner           (Vorschlaege, nie ausgefuehrt)
+master ─final_result / stop_report──▶ owner
+```
 
-- Geld ausgeben, veroeffentlichen, Kunden anschreiben, Accounts loeschen,
-  Dateien endgueltig loeschen, Vertraege, externe APIs, Video-Rendering:
-  **`require_approval`**. Selbst nach Freigabe wird nichts ausgefuehrt
-  (es existieren noch keine Executor - Dry-Run, nur protokolliert).
-- API-Schluessel ausgeben: **`deny`** (auch mit Freigabe nicht). Zusaetzlich
-  schwaerzt `secrets.py` Schluessel in Logs, Trace, CLI-Ausgabe; die QA
-  blockiert Ergebnisse, die Schluessel enthalten.
-- `AnthropicLLMClient` ist bewusst gesperrt und wirft
-  `ExternalServiceNotApprovedError` - es kann kein kostenpflichtiger Aufruf
-  "aus Versehen" passieren.
-- LLM-Budget pro Job (`models.yaml: budget.max_llm_calls_per_job`).
-- Fehler: technische Fehler werden bis zu `max_retries` wiederholt, nicht
-  wiederholbare (Freigabe fehlt, Budget) brechen sofort ab; Folgeschritte
-  werden `skipped`; unerwartete Exceptions bringen nie den Prozess zum Absturz.
+Feste Schnittstellen: `MasterAgent.plan(Job) -> Plan`,
+`SpecialistAgent.handle(AgentRequest) -> AgentResponse`,
+`QAAgent.review(AgentRequest, AgentResponse) -> QAReport`. Agenten schlagen
+Aktionen in einem ```` ```actions ```` -JSON-Block vor; die QA prueft jede
+einzelne gegen Agenten-Rechte und Owner-Regeln.
 
 ## Brand-Informationen eintragen
 
-1. `agent_system/brand/brand_knowledge.yaml` oeffnen und die Felder
-   ausfuellen (Brandname, Mission, Produkte, Dienstleistungen, Zielgruppe,
-   Positionierung, Tonalitaet, Markenwerte, Designregeln, No-Go-Regeln,
-   Ziele, Wettbewerber, bestehende Inhalte). Leere Felder sind erlaubt.
-2. `no_go_rules.forbidden_words` wird von der QA **automatisch erzwungen**:
-   Ergebnisse mit diesen Woertern werden zur Ueberarbeitung zurueckgeschickt
-   und notfalls nicht ausgeliefert.
-3. `python -m agent_system brand check --show-context` zeigt, was fehlt, und
-   genau den Kontext, den jeder Agent bekommt.
-4. Alternativ eigene Datei: `python -m agent_system --brand-file meine_marke.yaml ...`
+1. `agent_system/brand/brand_knowledge.yaml` ausfuellen (Brandname, Mission,
+   Produkte, Dienstleistungen, Zielgruppe, Positionierung, Tonalitaet,
+   Markenwerte, Designregeln, No-Go-Regeln, Ziele, Wettbewerber, bestehende
+   Inhalte). Leere Felder sind erlaubt.
+2. `no_go_rules.forbidden_words` erzwingt die QA automatisch.
+3. `python -m agent_system brand check --show-context` zeigt Luecken und den
+   Kontext, den jeder Agent bekommt.
 
-## Ersten Agenten produktiv machen (naechste Schritte)
+## Ersten Agenten produktiv machen (erst nach deiner Freigabe)
 
-Empfohlene Reihenfolge - jeder Schritt braucht deine ausdrueckliche Freigabe,
-weil er die kostenpflichtige Claude-API nutzt:
-
-1. **Brand-Wissen eintragen** (siehe oben) - ohne das bleiben Ergebnisse generisch.
-2. **API-Key bereitstellen** - nur als Umgebungsvariable `ANTHROPIC_API_KEY`,
-   nie in Dateien/Git.
-3. **`AnthropicLLMClient.complete()` implementieren** (`core/llm.py`) mit dem
-   offiziellen `anthropic`-SDK: `request.system`, `request.prompt`,
-   `request.tier.model_id/max_tokens/temperature` auf die Messages-API
-   abbilden; Timeouts/Rate-Limits als `LLMError` (retryable) melden.
-4. **Pilot mit einem Agenten**, z.B. dem Social-Agenten: in `models.yaml`
-   `provider: anthropic` setzen, Budget klein halten
-   (`max_llm_calls_per_job: 10`), und nur Auftraege geben, die auf `social`
-   geroutet werden. Master-Planung und QA-Review nutzen dann automatisch
-   ebenfalls das echte Modell (inkl. JSON-Plan) - die Regelpruefungen der
-   QA und die Freigabepflicht bleiben unveraendert aktiv.
-5. **Ergebnisse bewerten**, Prompts in `prompts/social.md` nachschaerfen,
-   dann schrittweise weitere Agenten.
-6. **Erst danach** echte Executor fuer freigegebene Aktionen bauen (z.B.
-   Instagram-Entwurf anlegen, CineMotion-Rendering fuer `generate_video`) -
-   jeweils einzeln, mit eigener Freigabe.
+1. Brand-Wissen eintragen.
+2. Freigabe fuer die Claude-API erteilen (kostenpflichtig). Erst dann:
+   API-Key nur als Umgebungsvariable `ANTHROPIC_API_KEY`.
+3. `AnthropicLLMClient.complete()` in `core/llm.py` implementieren
+   (Messages-API; Timeouts/Rate-Limits als `LLMError`).
+4. Pilot mit einem Agenten (z.B. Social), `provider: anthropic`,
+   `max_llm_calls_per_job: 10`. Owner-Gate, QA und Audit bleiben unveraendert aktiv.
+5. Erst viel spaeter und einzeln: echte Executor fuer freigegebene Aktionen.
