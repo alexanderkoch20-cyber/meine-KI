@@ -93,9 +93,13 @@ class ApprovalStore:
         )
         tmp.replace(self._path)
 
-    def request(self, job_id: str, step_id: str, action: ProposedAction, reason: str) -> ApprovalRequest:
+    def request(self, job_id: str, step_id: str, action: ProposedAction, reason: str,
+                legal_status: str | None = None, legal_review_id: str | None = None) -> ApprovalRequest:
         with self._lock:
-            apr = ApprovalRequest(job_id=job_id, step_id=step_id, action=action, reason=reason)
+            apr = ApprovalRequest(job_id=job_id, step_id=step_id, action=action, reason=reason,
+                                  legal_review_id=legal_review_id)
+            if legal_status:
+                apr.legal_status = legal_status
             self._items[apr.id] = apr
             self._save()
         log.info("Freigabe angefordert: %s (%s)", action.action, apr.id,

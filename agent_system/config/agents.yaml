@@ -2,7 +2,7 @@
 #
 # Felder:
 #   name            Anzeigename
-#   role            master | specialist | qa
+#   role            master | specialist | qa | legal
 #   model_tier      opus | sonnet | haiku (siehe models.yaml)
 #   prompt_file     System-Prompt in agent_system/prompts/
 #   responsibilities  Aufgabenbereich (wird auch vom Master fuers Routing genutzt)
@@ -40,7 +40,8 @@ agents:
       - Conversion-orientierte Texte
     keywords: [marketing*, strategie*, kampagne*, angebot*, positionierung, werbung,
                werbekonzept*, conversion, landingpage*, ads, anzeige*, funnel, slogan*,
-               werbetext*, verkaufstext*]
+               werbetext*, verkaufstext*, newsletter*, bewerb*, bewirb, bewertung*,
+               e-mail-kampagne*, mailing*]
     allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
                       spend_money, publish_content]
 
@@ -132,6 +133,27 @@ agents:
       - einfache Zusammenfassungen
     keywords: [formatier*, klassifizier*, sortier*, liste, tabelle*,
                zusammenfass*, fasse, umwandeln, konvertier*, csv, json]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  legal:
+    # Besonders geschuetzte Kontrollinstanz. Prueft JEDES Ergebnis und jede
+    # externe Aktion vor der QA. Darf markieren, blockieren, Risiken melden,
+    # Quellen liefern und menschliche Rechtspruefung verlangen - aber nie
+    # freigeben, nie selbst handeln und nie rechtsverbindlich entscheiden.
+    # Modellstufe opus wegen der Tragweite (Owner kann das aendern).
+    name: Chief Legal & Compliance Agent
+    role: legal
+    model_tier: opus
+    prompt_file: legal.md
+    responsibilities:
+      - Datenschutz (DSGVO, Einwilligungen, Tracking, Drittlandtransfer, KI)
+      - Werbung & Marketing (Claims, Kennzeichnung, Preise, Wettbewerb)
+      - Geistiges Eigentum (Urheber-, Marken-, Lizenzrecht, KI-Inhalte)
+      - E-Commerce & Verbraucherrecht
+      - Internationale Expansion (jurisdiktionsbezogen)
+      - Vertragsanalyse (nur Risiken markieren)
+      - Legal Research mit dokumentierten Quellen
+    # Kontrollinstanz: KEINE externen Aktionen (wird beim Laden erzwungen).
     allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
 
   qa:

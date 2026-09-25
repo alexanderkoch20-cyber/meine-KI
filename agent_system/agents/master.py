@@ -18,10 +18,10 @@ Planung in zwei Stufen:
 
 from __future__ import annotations
 
-import re
-
 from ..core.errors import AgentSystemError, PlanningError
+from ..core.legal import format_review
 from ..core.models import Job, Plan, PlanStep, StepStatus
+from ..core.textmatch import keyword_matches, normalize
 from .base import BaseAgent, parse_json_object
 
 #: Reihenfolge fuer regelbasierte Plaene: Grundlagen zuerst, Umsetzung danach.
@@ -118,7 +118,7 @@ class MasterAgent(BaseAgent):
         return plan
 
     def rule_based_plan(self, request: str) -> Plan:
-        text = request.lower()
+        text = normalize(request)
         scores: dict[str, int] = {}
         for spec in self.ctx.config.specialists().values():
             score = sum(1 for kw in spec.keywords if keyword_matches(kw, text))
@@ -186,6 +186,11 @@ class MasterAgent(BaseAgent):
             out.append("## Nicht erledigt")
             for s in not_done:
                 out.append(f"- {s.agent_id}: {s.status.value} - {s.error or 'nicht ausgefuehrt'}")
+        reviews = [("Vorpruefung Auftrag", job.legal_precheck)] if job.legal_precheck else []
+        reviews += [(f"Schritt {s.agent_id}", s.legal_review) for s in job.plan.steps if s.legal_review]
+        if reviews:
+            out.append(f"## Legal & Compliance (Gesamtstatus: `{job.legal_status.value}`)")
+            out.extend(format_review(review, title) for title, review in reviews)
         if job.recommendations:
             out.append("## Empfehlungen (nichts davon wurde ausgefuehrt)")
             out.extend(f"- {r}" for r in job.recommendations)
@@ -194,15 +199,6 @@ class MasterAgent(BaseAgent):
             for apr_id, action, desc in pending_approvals:
                 out.append(f"- `{apr_id}` **{action}**: {desc}")
         return "\n\n".join(out)
-
-
-def keyword_matches(keyword: str, text: str) -> bool:
-    """Ganzwort-Treffer; ``wort*`` trifft jeden Wortanfang (z.B. Plural, Komposita)."""
-    if keyword.endswith("*"):
-        pattern = r"(?<!\w)" + re.escape(keyword[:-1])
-    else:
-        pattern = r"(?<!\w)" + re.escape(keyword) + r"(?!\w)"
-    return re.search(pattern, text) is not None
 
 
 def topological_order(plan: Plan) -> list[PlanStep]:

@@ -12,9 +12,19 @@ Drei strikt getrennte Phasen:
 
 3. **Ausfuehren** (``execute``) - nur nach gueltiger Owner-Freigabe.
        master ──task_assignment──▶ spezialist ──task_result──▶ master
+       master ──legal_review_request──▶ legal ──legal_review_report──▶ master
        master ──qa_request──▶ qa ──qa_report──▶ master
        master ──approval_request──▶ owner   (Vorschlaege, nie ausgefuehrt)
        master ──final_result──▶ owner
+
+Legal & Compliance (Pflicht, nicht umgehbar):
+- Vorpruefung jedes Auftrags beim Planen (vor der Owner-Freigabe).
+- Pruefung JEDES Agenten-Ergebnisses und jeder externen Aktion vor der QA.
+  "Keine Pruefung noetig" wird ebenfalls dokumentiert.
+- LEGAL_REVIEW_BLOCKED -> Schritt scheitert, Inhalt wird nicht ausgeliefert, Stopp.
+- HUMAN_LEGAL_REVIEW_REQUIRED -> Pause; weiter erst nach dokumentierter
+  menschlicher Rechtspruefung (Owner) UND erneuter Owner-Freigabe.
+- Legal PASSED ersetzt nie die Owner-Freigabe.
 
 STOPPEN statt selbststaendig handeln:
 - Schritt schlaegt fehl / QA lehnt ab -> Auftrag stoppt (FAILED), keine
@@ -33,15 +43,22 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .agents.base import AgentContext
+from .agents.legal import LegalAgent
 from .agents.master import MasterAgent, topological_order
 from .agents.qa import QAAgent
 from .agents.specialist import SPECIALIST_CLASSES, SpecialistAgent
 from .core.brand import BrandKnowledge
 from .core.bus import MessageBus
 from .core.config import SystemConfig, load_config
-from .core.errors import AgentSystemError, ExternalServiceNotApprovedError, OwnerApprovalRequiredError
+from .core.errors import (
+    AgentSystemError,
+    ExternalServiceNotApprovedError,
+    GovernanceViolationError,
+    OwnerApprovalRequiredError,
+)
 from .core.governance import SYSTEM, Actor, AuditLog, OwnerApprovalGate
 from .core.jobs import JobStore, transition
+from .core.legal import normalize_jurisdictions
 from .core.llm import BudgetedLLMClient, LLMClient, create_llm_client
 from .core.logging_setup import get_logger
 from .core.models import (
@@ -50,6 +67,8 @@ from .core.models import (
     AgentResponse,
     ApprovalRequest,
     Job,
+    LegalReview,
+    LegalStatus,
     MessageType,
     PlanStep,
     QAReport,
@@ -71,19 +90,29 @@ class _Team:
         self.bus = MessageBus()
         self.master: MasterAgent | None = None
         self.qa: QAAgent | None = None
+        self.legal: LegalAgent | None = None
         self.specialists: dict[str, SpecialistAgent] = {}
         for agent_id, definition in config.agents.items():
             if definition.role == "master":
                 self.master = MasterAgent(definition, ctx)
             elif definition.role == "qa":
                 self.qa = QAAgent(definition, ctx)
+            elif definition.role == "legal":
+                self.legal = LegalAgent(definition, ctx)
             else:
                 cls = SPECIALIST_CLASSES.get(agent_id, SpecialistAgent)
                 self.specialists[agent_id] = cls(definition, ctx)
 
-        master, qa = self.master, self.qa
+        master, qa, legal = self.master, self.qa, self.legal
         self.bus.register(master.id, lambda m: master.plan(m.payload["job"]))
         self.bus.register(qa.id, lambda m: qa.review(m.payload["request"], m.payload["response"]))
+
+        def legal_handler(m: AgentMessage) -> LegalReview:
+            if m.payload["scope"] == "task":
+                return legal.review_task(m.payload["job"])
+            return legal.review_step(m.payload["job"], m.payload["step"], m.payload["response"])
+
+        self.bus.register(legal.id, legal_handler)
         for agent_id, agent in self.specialists.items():
             self.bus.register(agent_id, lambda m, a=agent: a.handle(AgentRequest(**m.payload["request"])),
                               requires_running_job=True)
@@ -114,14 +143,18 @@ class Orchestrator:
 
     # =================================================== Owner-Schnittstelle
 
-    def submit(self, request: str, actor: Actor) -> Job:
-        """Owner erteilt einen Auftrag. Der Master PLANT nur; nichts wird ausgefuehrt."""
+    def submit(self, request: str, actor: Actor, jurisdictions: list[str] | None = None) -> Job:
+        """Owner erteilt einen Auftrag. Der Master PLANT nur; nichts wird ausgefuehrt.
+
+        ``jurisdictions``: Rechtsraeume (z.B. ["DE", "AT"]). Zusaetzlich werden im
+        Text genannte Laender erkannt. Es wird nie ein Rechtsraum angenommen."""
         self.gate.require_owner(actor, "submit_task")
         request = (request or "").strip()
         if not request:
             raise AgentSystemError("Leerer Auftrag")
-        job = self.jobs.add(Job(request=request, requested_by=actor.id))
-        self.audit.record("task_created", actor, job.id, request=request)
+        job = Job(request=request, requested_by=actor.id, jurisdictions=normalize_jurisdictions(jurisdictions or []))
+        self.jobs.add(job)
+        self.audit.record("task_created", actor, job.id, request=request, jurisdictions=job.jurisdictions)
         self._plan(job)
         return job
 
@@ -162,6 +195,26 @@ class Orchestrator:
         self.jobs.save(job)
         return job
 
+    def set_jurisdictions(self, job_id: str, jurisdictions: list[str], actor: Actor) -> Job:
+        """Owner legt die Rechtsraeume fest -> neue Planung inkl. Legal-Vorpruefung."""
+        self.gate.require_owner(actor, "set_jurisdictions")
+        job = self.jobs.get(job_id)
+        if job.status != TaskStatus.WAITING_FOR_OWNER or (
+                job.plan and any(s.status != StepStatus.PENDING for s in job.plan.steps)):
+            raise OwnerApprovalRequiredError("Rechtsraeume koennen nur vor Beginn der Ausfuehrung gesetzt werden")
+        job.jurisdictions = normalize_jurisdictions(jurisdictions)
+        self.audit.record("jurisdictions_set", actor, job.id, jurisdictions=job.jurisdictions)
+        self._plan(job, replan=True)
+        return job
+
+    def record_human_legal_review(self, job_id: str, reviewer: str, note: str, actor: Actor) -> Job:
+        """Owner dokumentiert eine menschliche Rechtspruefung der offenen Legal-Punkte.
+        Danach ist weiterhin die Owner-Freigabe noetig (approve / approve-action)."""
+        job = self.jobs.get(job_id)
+        self.gate.record_human_legal_review(job, reviewer, note, actor)
+        self.jobs.save(job)
+        return job
+
     def resubmit(self, job_id: str, actor: Actor) -> Job:
         """Owner entscheidet, einen gestoppten/abgebrochenen Auftrag neu vorzulegen.
         Ergebnis ist ein NEUER Auftrag, der wieder eine Freigabe braucht."""
@@ -170,15 +223,25 @@ class Orchestrator:
         if old.status not in (TaskStatus.FAILED, TaskStatus.CANCELLED):
             raise AgentSystemError(f"Nur gescheiterte/abgebrochene Auftraege koennen neu vorgelegt werden "
                                    f"({old.id} ist '{old.status.value}')")
-        job = self.submit(old.request, actor)
+        job = self.submit(old.request, actor, jurisdictions=old.jurisdictions)
         job.resubmitted_from = old.id
         self.audit.record("task_resubmitted", actor, job.id, from_job=old.id)
         self.jobs.save(job)
         return job
 
     def decide_action(self, approval_id: str, approve: bool, actor: Actor) -> ApprovalRequest:
-        """Owner entscheidet ueber einen Aktionsvorschlag. Es wird NICHTS ausgefuehrt (Dry-Run)."""
-        return self.gate.decide_action(self.approvals, approval_id, approve, actor)
+        """Owner entscheidet ueber einen Aktionsvorschlag. Es wird NICHTS ausgefuehrt (Dry-Run).
+        Freigeben setzt eine unbedenkliche bzw. menschlich gepruefte Legal-Pruefung voraus."""
+        self.gate.require_owner(actor, "approve_action" if approve else "reject_action")
+        apr = self.approvals.get(approval_id)
+        review = None
+        try:
+            job = self.jobs.get(apr.job_id)
+            step = next((s for s in job.plan.steps if s.id == apr.step_id), None) if job.plan else None
+            review = step.legal_review if step else None
+        except AgentSystemError:
+            review = None
+        return self.gate.decide_action(self.approvals, approval_id, approve, actor, legal_review=review)
 
     # ============================================================ Ausfuehrung
 
@@ -232,9 +295,18 @@ class Orchestrator:
             if job.status != TaskStatus.FAILED:
                 raise
             return
-        job.llm_calls = llm.calls
         job.plan = plan
-        job.open_questions = list(plan.questions)
+        # Rechtsraeume: Owner-Angabe + im Text genannte Laender (nie ein angenommener).
+        detected = self.config.legal.detect_jurisdictions("\n".join([job.request, *job.owner_notes]))
+        job.jurisdictions = job.jurisdictions + [j for j in detected if j not in job.jurisdictions]
+        review = team.bus.send(job, AgentMessage(
+            sender=team.master.id, recipient=team.legal.id, type=MessageType.LEGAL_REVIEW_REQUEST,
+            job_id=job.id, payload={"scope": "task", "job": job},
+        ))
+        job.llm_calls = llm.calls
+        job.legal_precheck = review
+        self._record_legal(job, team, review)
+        job.open_questions = list(plan.questions) + [f"[Legal] {q}" for q in review.questions]
         team.bus.record(job, AgentMessage(
             sender=team.master.id, recipient=job.requested_by, type=MessageType.PLAN_PROPOSAL,
             job_id=job.id, payload={"plan": plan.to_dict()},
@@ -260,11 +332,18 @@ class Orchestrator:
             ok = self._execute_step(job, team, step, brand_context, upstream)
             self.jobs.save(job)
             if not ok:
+                if step.legal_review and step.legal_review.status == LegalStatus.BLOCKED:
+                    recommendation = ("Inhalt anpassen und als neuen Auftrag erteilen; bei Bedarf eine "
+                                      "menschliche Rechtspruefung einholen. Kein Agent kann eine Legal-"
+                                      "Blockade aufheben.")
+                else:
+                    recommendation = ("Ursache pruefen; bei Bedarf den Auftrag mit 'resubmit' neu vorlegen "
+                                      "(braucht erneut deine Freigabe).")
                 self._stop_failed(job, team, f"Schritt '{step.agent_id}' fehlgeschlagen: {step.error}",
-                                  "Ursache pruefen; bei Bedarf den Auftrag mit 'resubmit' neu vorlegen "
-                                  "(braucht erneut deine Freigabe).")
+                                  recommendation)
                 return
-            if step.qa_report and step.qa_report.owner_decisions:
+            legal_open = bool(self.gate.open_legal_reviews(job))
+            if legal_open or (step.qa_report and step.qa_report.owner_decisions):
                 self._pause_for_owner(job, team, step)
                 return
 
@@ -309,6 +388,20 @@ class Orchestrator:
                 job_id=job.id, step_id=step.id,
                 payload={"chars": len(response.content), "actions": [a.action for a in response.proposed_actions]},
             ))
+            # --- Legal & Compliance (vor QA, Pflicht fuer jedes Ergebnis) ---
+            legal_review: LegalReview = team.bus.send(job, AgentMessage(
+                sender=team.master.id, recipient=team.legal.id, type=MessageType.LEGAL_REVIEW_REQUEST,
+                job_id=job.id, step_id=step.id, payload={"scope": "step", "job": job, "step": step,
+                                                         "response": response},
+            ))
+            step.legal_review = legal_review
+            self._record_legal(job, team, legal_review, step)
+            if legal_review.status == LegalStatus.BLOCKED:
+                step.result = None  # blockierte Inhalte nie ausliefern
+                return self._step_failed(job, team, step, "LEGAL_REVIEW_BLOCKED - " + "; ".join(
+                    f"{f.label} ({f.evidence})" for f in legal_review.findings if f.status == LegalStatus.BLOCKED)
+                    or "LEGAL_REVIEW_BLOCKED")
+
             report: QAReport = team.bus.send(job, AgentMessage(
                 sender=team.master.id, recipient=team.qa.id, type=MessageType.QA_REQUEST,
                 job_id=job.id, step_id=step.id, payload={"request": request, "response": response},
@@ -338,16 +431,38 @@ class Orchestrator:
                 i.message for i in report.issues if i.severity.value in ("error", "critical")))
 
     def _request_action_approvals(self, job: Job, team: _Team, step: PlanStep) -> None:
+        if step.qa_report.approval_required and step.legal_review is None:
+            raise GovernanceViolationError(f"Schritt {step.id}: Aktionen ohne Legal-&-Compliance-Pruefung")
         for action in step.qa_report.approval_required:
             reason = self.config.action_descriptions.get(action.action) or action.action
-            apr = self.approvals.request(job.id, step.id, action, reason)
+            apr = self.approvals.request(job.id, step.id, action, reason,
+                                         legal_status=step.legal_review.status.value,
+                                         legal_review_id=step.legal_review.id)
             job.approvals.append(apr.id)
             self.audit.record("action_proposed", Actor.agent(step.agent_id), job.id, approval_id=apr.id,
-                              action=action.action, description=action.description, executed=False)
+                              action=action.action, description=action.description, executed=False,
+                              legal_status=apr.legal_status)
             team.bus.record(job, AgentMessage(
                 sender=team.master.id, recipient=job.requested_by, type=MessageType.APPROVAL_REQUEST,
                 job_id=job.id, step_id=step.id, payload={"approval_id": apr.id, **action.to_dict()},
             ))
+
+    def _record_legal(self, job: Job, team: _Team, review: LegalReview, step: PlanStep | None = None) -> None:
+        """Legal-Ergebnis in Trace und Audit-Log - auch 'keine Pruefung noetig'."""
+        team.bus.record(job, AgentMessage(
+            sender=team.legal.id, recipient=team.master.id, type=MessageType.LEGAL_REVIEW_REPORT,
+            job_id=job.id, step_id=step.id if step else None,
+            payload={"scope": review.scope, "status": review.status.value, "findings": len(review.findings)},
+        ))
+        self.audit.record("legal_review", Actor.agent(team.legal.id), job.id, scope=review.scope,
+                          subject=step.agent_id if step else "task", review_id=review.id,
+                          status=review.status.value, jurisdictions=review.jurisdictions,
+                          findings=[f"{f.label}/{f.jurisdiction}: {f.status.value}" for f in review.findings],
+                          reasons=review.reasons)
+        for violation in review.agent_violations:
+            agent_id, _, action = violation.partition(": ")
+            self.audit.record("governance_violation", Actor.agent(agent_id), job.id, action=action,
+                              note="Versuch, die Legal-Pruefung zu beeinflussen oder selbst zu handeln - verworfen")
 
     def _step_failed(self, job: Job, team: _Team, step: PlanStep, error: str) -> bool:
         step.status = StepStatus.FAILED
@@ -385,9 +500,21 @@ class Orchestrator:
     def _pause_for_owner(self, job: Job, team: _Team, step: PlanStep) -> None:
         questions = [f"{step.agent_id}: {a.description}" for a in step.qa_report.owner_decisions]
         job.open_questions = questions
-        job.stop_reason = "Ein Agent braucht deine Entscheidung: " + " | ".join(questions)
-        job.recommendations.append("Mit 'clarify' antworten und danach mit 'approve' weitermachen - "
-                                   "oder den Auftrag mit 'cancel' beenden.")
+        reasons = []
+        if questions:
+            reasons.append("Ein Agent braucht deine Entscheidung: " + " | ".join(questions))
+            job.recommendations.append("Mit 'clarify' antworten und danach mit 'approve' weitermachen - "
+                                       "oder den Auftrag mit 'cancel' beenden.")
+        open_legal = self.gate.open_legal_reviews(job)
+        if open_legal:
+            reasons.append("HUMAN_LEGAL_REVIEW_REQUIRED (Schritt '" + step.agent_id + "'): " + "; ".join(
+                f"{f.label} [{f.jurisdiction or 'Rechtsraum unbekannt'}]" for r in open_legal
+                for f in r.findings if f.status != LegalStatus.PASSED))
+            job.recommendations.append("Menschliche Rechtspruefung einholen, mit 'legal-review-done' "
+                                       "dokumentieren und danach mit 'approve' weitermachen - oder 'cancel'.")
+        # Offene Rueckfragen sind nur Owner-Entscheidungen; Legal-Punkte klaert eine
+        # menschliche Rechtspruefung (legal-review-done), nicht ein 'clarify'.
+        job.stop_reason = " || ".join(reasons)
         job.final_output = team.master.synthesize(job, self._pending_for(job))
         transition(job, TaskStatus.WAITING_FOR_OWNER, SYSTEM, "gestoppt: Owner-Entscheidung noetig")
         self.audit.record("task_paused_for_owner", SYSTEM, job.id, questions=questions)

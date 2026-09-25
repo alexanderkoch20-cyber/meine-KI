@@ -279,9 +279,9 @@ def test_sensitive_actions_are_only_proposals(make_orch, config, owner, run_appr
 
 
 @pytest.mark.parametrize("action", ["spend_money", "publish_content"])
-def test_external_actions_need_owner_approval(make_orch, run_approved, action):
-    orch = make_orch(llm=MockLLMClient(scripted={"marketing:work": [_actions_block(action)]}))
-    job = run_approved(orch, "Plane eine Kampagne")
+def test_external_actions_need_owner_approval(make_orch, run_approved, verified_config, action):
+    orch = make_orch(cfg=verified_config, llm=MockLLMClient(scripted={"marketing:work": [_actions_block(action)]}))
+    job = run_approved(orch, "Plane eine Kampagne", ["DE"])
     assert [a.action.action for a in orch.approvals.pending(job.id)] == [action]
 
 
@@ -308,17 +308,20 @@ def test_agent_cannot_get_hold_of_owner_or_mutate_policies(make_orch, config):
 # ------------------------------------------------------------------ 11 Audit
 
 
-def test_full_audit_trail_for_a_task(make_orch, owner, run_approved):
-    orch = make_orch(llm=MockLLMClient(scripted={"social:work": [_actions_block("publish_content")]}))
-    job = run_approved(orch, "Schreibe einen Instagram-Post")
+def test_full_audit_trail_for_a_task(make_orch, owner, run_approved, verified_config):
+    orch = make_orch(cfg=verified_config,
+                     llm=MockLLMClient(scripted={"social:work": [_actions_block("publish_content")]}))
+    job = run_approved(orch, "Schreibe einen Instagram-Post", ["DE"])
     apr = orch.approvals.pending(job.id)[0]
     orch.decide_action(apr.id, False, owner)
     events = [(e["event"], e["actor_kind"]) for e in orch.audit.entries(job.id)]
     assert events == [
         ("task_created", "owner"),
+        ("legal_review", "agent"),        # Vorpruefung: dokumentiert (auch wenn nicht noetig)
         ("plan_proposed", "agent"),
         ("task_approved", "owner"),
         ("execution_started", "system"),
+        ("legal_review", "agent"),        # Pruefung des Ergebnisses inkl. publish_content
         ("action_proposed", "agent"),
         ("task_completed", "system"),
         ("action_rejected", "owner"),
@@ -349,6 +352,6 @@ def test_audit_persists_across_processes(make_orch, owner, tmp_path):
     second.approve(job.id, owner)
     second.execute(job.id)
     third = make_orch(data_dir=data)
-    assert [e["event"] for e in third.audit.entries(job.id)][:3] == [
-        "task_created", "plan_proposed", "task_approved"]
+    assert [e["event"] for e in third.audit.entries(job.id)][:4] == [
+        "task_created", "legal_review", "plan_proposed", "task_approved"]
     assert third.audit.verify()

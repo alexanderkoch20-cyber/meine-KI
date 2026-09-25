@@ -66,10 +66,45 @@ def test_cli_action_decisions_are_dry_run(tmp_path, capsys):
     from agent_system.core.models import ProposedAction
     from agent_system.core.permissions import ApprovalStore
 
+    # Eine "untergeschobene" Aktion ohne Legal-Pruefung kann nie freigegeben werden ...
     apr = ApprovalStore(tmp_path / "approvals.json").request(
         "job_x", "s", ProposedAction("publish_content", "Post"), "r")
     assert main(["--data-dir", str(tmp_path), "actions"]) == 0
     assert apr.id in capsys.readouterr().out
-    assert main(["--data-dir", str(tmp_path), "approve-action", apr.id]) == 0
+    assert main(["--data-dir", str(tmp_path), "approve-action", apr.id]) == 2
+    assert "legal_review_required" in capsys.readouterr().err
+    # ... ablehnen geht immer - und fuehrt nichts aus.
+    assert main(["--data-dir", str(tmp_path), "reject-action", apr.id]) == 0
     assert "Dry-Run" in capsys.readouterr().out
-    assert main(["--data-dir", str(tmp_path), "approve-action", apr.id]) == 2  # schon entschieden
+    assert main(["--data-dir", str(tmp_path), "reject-action", apr.id]) == 2  # schon entschieden
+
+
+def test_cli_legal_workflow(tmp_path, capsys):
+    d = ["--data-dir", str(tmp_path)]
+    assert main(d + ["submit", "Sende einen Newsletter an unsere Kundenliste", "-j", "DE"]) == 0
+    out = capsys.readouterr().out
+    assert "human_legal_review_required" in out and "legal-review-done" in out
+    job_id = _job_id(tmp_path)
+
+    assert main(d + ["approve", job_id]) == 2
+    assert "legal_review_required" in capsys.readouterr().err
+    assert main(d + ["legal", job_id]) == 0
+    out = capsys.readouterr().out
+    assert "Verordnung (EU) 2016/679" in out and "NICHT verifiziert" in out and "Keine Rechtsberatung" in out
+
+    assert main(d + ["legal-review-done", job_id, "--reviewer", "RA Muster (fiktiv)", "--note", "ok mit Auflagen"]) == 0
+    assert "Owner-Freigabe ist weiterhin erforderlich" in capsys.readouterr().out
+    assert main(d + ["approve", job_id]) == 0
+    assert main(d + ["start", job_id]) in (0, 1)
+    assert main(d + ["audit"]) == 0
+    out = capsys.readouterr().out
+    assert "human_legal_review_recorded" in out and "Hash-Kette: OK" in out
+
+
+def test_cli_jurisdictions_command(tmp_path, capsys):
+    d = ["--data-dir", str(tmp_path)]
+    main(d + ["submit", "Sende einen Newsletter an unsere Kundenliste"])
+    job_id = _job_id(tmp_path)
+    assert "[Legal]" in capsys.readouterr().out
+    assert main(d + ["jurisdictions", job_id, "DE", "AT"]) == 0
+    assert "Rechtsraeume: DE, AT" in capsys.readouterr().out

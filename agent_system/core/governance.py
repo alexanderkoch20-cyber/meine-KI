@@ -31,9 +31,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .errors import GovernanceViolationError, OwnerApprovalRequiredError
+from .errors import AgentSystemError, GovernanceViolationError, LegalReviewRequiredError, OwnerApprovalRequiredError
 from .logging_setup import get_logger
-from .models import ApprovalRequest, Job, TaskStatus, utcnow
+from .models import LEGAL_CLEARED, ApprovalRequest, Job, LegalReview, LegalStatus, TaskStatus, utcnow
 from .secrets import redact
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -151,8 +151,13 @@ class OwnerApprovalGate:
         self._path = Path(path) if path else None
         self._lock = threading.Lock()
         self._records: dict[str, dict[str, Any]] = {}
+        #: Vom Owner dokumentierte menschliche Rechtspruefungen (review_id -> Datensatz).
+        #: Massgeblich ist NUR dieser Speicher - nicht eine Angabe in der Job-Datei.
+        self._human_legal: dict[str, dict[str, Any]] = {}
         if self._path and self._path.exists():
-            self._records = json.loads(self._path.read_text(encoding="utf-8"))
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+            self._records = data.get("tasks", {})
+            self._human_legal = data.get("human_legal_reviews", {})
 
     # -- intern ---------------------------------------------------------------
 
@@ -161,7 +166,8 @@ class OwnerApprovalGate:
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self._records, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(json.dumps({"tasks": self._records, "human_legal_reviews": self._human_legal},
+                                  indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self._path)
 
     @staticmethod
@@ -193,6 +199,7 @@ class OwnerApprovalGate:
             )
         if not job.plan or not job.plan.steps:
             raise OwnerApprovalRequiredError(f"Auftrag {job.id} hat keinen ausfuehrbaren Plan")
+        self._require_legal_cleared(job, actor, "approve_task")
         plan_fp = job.plan.fingerprint()
         if expected_plan and expected_plan != plan_fp:
             raise OwnerApprovalRequiredError(
@@ -231,6 +238,9 @@ class OwnerApprovalGate:
 
         if job.status != TaskStatus.APPROVED:
             deny(f"Status ist '{job.status.value}', nicht 'approved'")
+        open_legal = self.open_legal_reviews(job)
+        if open_legal:
+            deny("Legal & Compliance: " + ", ".join(f"{r.scope}={r.status.value}" for r in open_legal))
         record = self._records.get(self._key(job))
         if not record or record.get("approved_by") != self.config.governance.owner_id:
             deny("kein Freigabe-Datensatz des Owners fuer diese Runde")
@@ -244,10 +254,70 @@ class OwnerApprovalGate:
     # -- Aktionen ---------------------------------------------------------------
 
     def decide_action(self, store: "ApprovalStore", approval_id: str, approve: bool,
-                      actor: Actor) -> ApprovalRequest:
+                      actor: Actor, legal_review: LegalReview | None = None) -> ApprovalRequest:
+        """Owner entscheidet ueber eine Aktion. Freigeben geht nur, wenn die zugehoerige
+        Legal-Pruefung existiert und unbedenklich ist bzw. menschlich geprueft wurde.
+        Ablehnen geht immer."""
         self.require_owner(actor, "approve_action" if approve else "reject_action")
+        if approve:
+            apr = store.get(approval_id)
+            problem = None
+            if legal_review is None or legal_review.id != apr.legal_review_id:
+                problem = "keine Legal-&-Compliance-Pruefung fuer diese Aktion vorhanden"
+            elif not self.legal_cleared(legal_review):
+                problem = f"Legal-Status '{legal_review.status.value}' ohne dokumentierte menschliche Rechtspruefung"
+            if problem:
+                self.audit.record("execution_denied", actor, apr.job_id, approval_id=apr.id,
+                                  action=apr.action.action, reason=f"Legal: {problem}")
+                raise LegalReviewRequiredError(f"Aktion '{apr.action.action}' kann nicht freigegeben werden: {problem}")
         apr = store.decide(approval_id, approve, actor)
         self.audit.record("action_approved" if approve else "action_rejected", actor, apr.job_id,
                           approval_id=apr.id, action=apr.action.action, description=apr.action.description,
                           executed=False, note="Dry-Run: es existiert kein Executor, nichts wurde ausgefuehrt")
         return apr
+
+    # -- Legal & Compliance --------------------------------------------------------
+
+    def legal_cleared(self, review: LegalReview) -> bool:
+        return review.status in LEGAL_CLEARED or review.id in self._human_legal
+
+    def open_legal_reviews(self, job: Job) -> list[LegalReview]:
+        return [r for r in job.legal_reviews() if not self.legal_cleared(r)]
+
+    def _require_legal_cleared(self, job: Job, actor: Actor, attempted: str) -> None:
+        open_legal = self.open_legal_reviews(job)
+        if not open_legal:
+            return
+        self.audit.record("legal_block", actor, job.id, attempted=attempted,
+                          reviews={r.id: r.status.value for r in open_legal})
+        blocked = any(r.status == LegalStatus.BLOCKED for r in open_legal)
+        raise LegalReviewRequiredError(
+            ("LEGAL_REVIEW_BLOCKED" if blocked else "HUMAN_LEGAL_REVIEW_REQUIRED")
+            + " - Freigabe erst nach dokumentierter menschlicher Rechtspruefung "
+            "(legal-review-done). Offene Pruefungen: "
+            + ", ".join(f"{r.scope}:{r.status.value}" for r in open_legal)
+        )
+
+    def record_human_legal_review(self, job: Job, reviewer: str, note: str, actor: Actor) -> list[str]:
+        """Owner dokumentiert, dass ein MENSCH die offenen Legal-Punkte geprueft hat.
+
+        Das ist die einzige Moeglichkeit, BLOCKED/HUMAN_REQUIRED aufzuheben. Die
+        Owner-Freigabe des Auftrags bzw. der Aktion ist danach trotzdem noetig."""
+        self.require_owner(actor, "record_human_legal_review", job.id)
+        reviewer, note = (reviewer or "").strip(), (note or "").strip()
+        if not reviewer:
+            raise AgentSystemError("Bitte angeben, wer die menschliche Rechtspruefung durchgefuehrt hat")
+        open_legal = self.open_legal_reviews(job)
+        if not open_legal:
+            raise AgentSystemError(f"Auftrag {job.id} hat keine offenen Legal-Pruefungen")
+        record = {"reviewer": reviewer, "note": note, "recorded_by": actor.id, "recorded_at": utcnow()}
+        with self._lock:
+            for review in open_legal:
+                self._human_legal[review.id] = {**record, "job_id": job.id, "status": review.status.value}
+                review.human_review = dict(record)
+            self._save()
+        self.audit.record("human_legal_review_recorded", actor, job.id, reviewer=reviewer, note=note,
+                          reviews={r.id: r.status.value for r in open_legal},
+                          findings=[f"{f.label}/{f.jurisdiction}: {f.status.value}"
+                                    for r in open_legal for f in r.findings])
+        return [r.id for r in open_legal]

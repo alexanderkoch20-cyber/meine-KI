@@ -76,7 +76,7 @@ class MockLLMClient:
 
     @staticmethod
     def _default(request: LLMRequest) -> str:
-        if request.purpose in ("plan", "qa"):
+        if request.purpose in ("plan", "qa", "legal"):
             return "MOCK: keine strukturierte Antwort"
         if request.purpose == "synthesize":
             return ("Mock-Modus: Die Teilergebnisse unten sind Platzhalter. Naechster Schritt: "

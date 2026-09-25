@@ -42,9 +42,13 @@ def test_communication_flows_through_master_and_qa(make_orch, run_approved):
     flow = [(t["from"], t["to"], t["type"]) for t in job.trace]
     assert flow == [
         ("owner", "master", "task_assignment"),
+        ("master", "legal", "legal_review_request"),      # Legal-Vorpruefung des Auftrags
+        ("legal", "master", "legal_review_report"),
         ("master", "owner", "plan_proposal"),
         ("master", "social", "task_assignment"),
         ("social", "master", "task_result"),
+        ("master", "legal", "legal_review_request"),      # Legal VOR QA
+        ("legal", "master", "legal_review_report"),
         ("master", "qa", "qa_request"),
         ("qa", "master", "qa_report"),
         ("master", "owner", "final_result"),
@@ -66,9 +70,9 @@ def test_models_per_agent(make_orch, run_approved):
     assert tiers[("qa", "qa")] == "sonnet"
 
 
-def test_external_action_is_only_proposed_never_executed(make_orch, owner, run_approved):
-    orch = make_orch(llm=MockLLMClient(scripted={"social:work": [POST_WITH_PUBLISH]}))
-    job = run_approved(orch, "Schreibe einen Instagram-Post")
+def test_external_action_is_only_proposed_never_executed(make_orch, owner, run_approved, verified_config):
+    orch = make_orch(cfg=verified_config, llm=MockLLMClient(scripted={"social:work": [POST_WITH_PUBLISH]}))
+    job = run_approved(orch, "Schreibe einen Instagram-Post", ["DE"])
     assert job.status == TaskStatus.COMPLETED
     pending = orch.approvals.pending(job.id)
     assert [a.action.action for a in pending] == ["publish_content"]
@@ -143,12 +147,12 @@ def test_unexpected_exception_does_not_crash(make_orch, run_approved):
     assert "ZeroDivisionError" in job.plan.steps[0].error
 
 
-def test_agent_decision_request_pauses_until_owner_decides(make_orch, owner):
+def test_agent_decision_request_pauses_until_owner_decides(make_orch, owner, verified_config):
     decision = GOOD + ('\n```actions\n[{"action": "request_owner_decision", '
                        '"description": "Rabatt 10% oder 20%? Empfehlung: 10%"}]\n```')
     llm = MockLLMClient(scripted={"marketing:work": [decision]}, responder=lambda r: GOOD)
-    orch = make_orch(llm=llm)
-    job = orch.submit("Plane eine Kampagne und Instagram-Posts", owner)
+    orch = make_orch(llm=llm, cfg=verified_config)
+    job = orch.submit("Plane eine Kampagne und Instagram-Posts", owner, jurisdictions=["DE"])
     orch.approve(job.id, owner)
     orch.execute(job.id)
 

@@ -24,6 +24,7 @@ def test_default_config_has_all_nine_agents_with_expected_models(config):
         "research": ("specialist", "sonnet"),
         "coding": ("specialist", "sonnet"),
         "routine": ("specialist", "haiku"),
+        "legal": ("legal", "opus"),
         "qa": ("qa", "sonnet"),
     }
     assert {a: (d.role, d.model_tier) for a, d in config.agents.items()} == expected

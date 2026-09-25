@@ -54,6 +54,11 @@ AGENT_FORBIDDEN_ACTIONS: frozenset[str] = frozenset({
     "modify_governance",
     "approve_task",
     "approve_action",
+    # Legal-Pruefung ist Pflicht und nicht umgehbar
+    "bypass_legal_review",
+    "override_legal_review",
+    "set_legal_status",
+    "modify_legal_knowledge",
 })
 
 #: Vorschlaege, die JEDER Agent machen darf (Empfehlung statt Handlung).
@@ -68,5 +73,22 @@ ALWAYS_PROPOSABLE_ACTIONS: frozenset[str] = frozenset({
 #: Signal eines Agenten: "Hier wird eine Entscheidung des Owners gebraucht."
 STOP_FOR_DECISION_ACTION = "request_owner_decision"
 
+#: Aktionen mit externer Wirkung, die IMMER durch den Legal & Compliance
+#: Agenten geprueft werden (Pipeline: Spezialist -> Legal -> QA -> Owner).
+LEGAL_MANDATORY_ACTIONS: frozenset[str] = frozenset({
+    "publish_content",
+    "send_customer_message",
+    "spend_money",
+    "sign_contract",
+    "generate_video",
+    "call_external_api",
+    "connect_external_account",
+    "activate_external_service",
+})
+
 #: Agenten, die immer freigegeben sein muessen, damit das System arbeiten kann.
-REQUIRED_AGENTS: frozenset[str] = frozenset({"master", "qa"})
+#: Ohne Legal-Agent laeuft nichts - er kann nicht "abgeschaltet" werden.
+REQUIRED_AGENTS: frozenset[str] = frozenset({"master", "qa", "legal"})
+
+#: Rollen, die als Kontrollinstanz nie selbst externe Aktionen vorschlagen duerfen.
+CONTROL_ROLES: frozenset[str] = frozenset({"qa", "legal"})

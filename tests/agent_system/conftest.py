@@ -51,6 +51,21 @@ def filled_brand(tmp_path) -> BrandKnowledge:
 
 
 @pytest.fixture
+def verified_config(config_dir):
+    """Konfiguration, in der ein Mensch (fiktiv, nur fuer Tests) alle Quellen des
+    Legal-Katalogs verifiziert und datiert hat. Der ausgelieferte Katalog ist
+    bewusst UNverifiziert."""
+    path = config_dir / "legal.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for rule in data["rules"]:
+        rule["verified_at"] = "2026-09-01"
+        rule["verified_by"] = "Test-Kanzlei (fiktiv)"
+        rule["version_date"] = rule.get("version_date") or "2024-01-01"
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return load_config(config_dir)
+
+
+@pytest.fixture
 def owner(config):
     from agent_system.core.governance import owner_session
     return owner_session(config)
@@ -59,8 +74,8 @@ def owner(config):
 @pytest.fixture
 def run_approved(owner):
     """Owner-Ablauf: Auftrag erteilen -> Plan freigeben -> ausfuehren."""
-    def _run(orch, request):
-        job = orch.submit(request, owner)
+    def _run(orch, request, jurisdictions=None):
+        job = orch.submit(request, owner, jurisdictions=jurisdictions)
         orch.approve(job.id, owner, job.plan.fingerprint())
         return orch.execute(job.id)
     return _run

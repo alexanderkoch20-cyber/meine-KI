@@ -9,6 +9,12 @@ dazu. Typischer Ablauf:
     python -m agent_system approve JOB_ID --plan FP    # Owner-Freigabe genau dieses Plans
     python -m agent_system start JOB_ID                # Ausfuehrung (nur wenn freigegeben)
 
+Legal & Compliance:
+    python -m agent_system submit "..." -j DE -j AT     # Rechtsraeume angeben
+    python -m agent_system jurisdictions JOB_ID DE AT   # Rechtsraeume nachtragen
+    python -m agent_system legal JOB_ID                 # Legal-Bericht mit Quellen
+    python -m agent_system legal-review-done JOB_ID --reviewer "RA Muster" --note "..."
+
 Weitere Owner-Befehle: clarify, cancel, resubmit, actions, approve-action,
 reject-action, audit. Info: agents, brand check, tasks.
 """
@@ -25,6 +31,7 @@ from .core.brand import BRAND_SECTIONS
 from .core.config import load_config
 from .core.errors import AgentSystemError
 from .core.governance import owner_session
+from .core.legal import format_review
 from .core.logging_setup import setup_logging
 from .core.models import Job
 from .core.secrets import redact
@@ -37,7 +44,7 @@ def _print(text: str) -> None:
     print(redact(text))
 
 
-def _print_job(job: Job, full: bool = False) -> None:
+def _print_job(orch: Orchestrator, job: Job, full: bool = False) -> None:
     _print(f"Auftrag {job.id}: {job.status.value}")
     _print(f"  Anweisung: {job.request}")
     if job.plan:
@@ -47,12 +54,19 @@ def _print_job(job: Job, full: bool = False) -> None:
         for i, s in enumerate(job.plan.steps, 1):
             verdict = f" QA={s.qa_report.verdict.value}" if s.qa_report else ""
             _print(f"   {i}. [{s.status.value}] {s.agent_id}: {s.instruction}{verdict}")
+    _print(f"  Rechtsraeume: {', '.join(job.jurisdictions) or 'unbekannt (es wird keiner angenommen)'}")
+    _print(f"  Legal & Compliance: {job.legal_status.value}")
     for q in job.open_questions:
         _print(f"  ? RUECKFRAGE: {q}")
     if job.stop_reason:
         _print(f"  ! GESTOPPT: {job.stop_reason}")
     for r in job.recommendations:
         _print(f"  > Empfehlung: {r}")
+    if job.status.value == "waiting_for_owner" and orch.gate.open_legal_reviews(job):
+        _print(f"\nLegal & Compliance verlangt eine MENSCHLICHE Rechtspruefung. Details:\n"
+               f"  python -m agent_system legal {job.id}\n"
+               f"Nach der Pruefung dokumentieren:\n"
+               f"  python -m agent_system legal-review-done {job.id} --reviewer \"Name\" --note \"Ergebnis\"")
     if job.status.value == "waiting_for_owner":
         if job.open_questions:
             _print(f"\nNaechster Schritt: python -m agent_system clarify {job.id} \"Deine Antwort\"")
@@ -76,6 +90,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("submit", help="Neuen Auftrag erteilen (Master plant nur, fuehrt nichts aus)")
     s.add_argument("request")
+    s.add_argument("-j", "--jurisdiction", action="append", default=[],
+                   help="Rechtsraum, mehrfach moeglich (z.B. -j DE -j AT)")
+
+    ju = sub.add_parser("jurisdictions", help="Rechtsraeume eines Auftrags festlegen (vor der Ausfuehrung)")
+    ju.add_argument("job_id")
+    ju.add_argument("codes", nargs="+")
+
+    lg = sub.add_parser("legal", help="Legal-&-Compliance-Bericht eines Auftrags anzeigen")
+    lg.add_argument("job_id")
+
+    lr = sub.add_parser("legal-review-done", help="Menschliche Rechtspruefung dokumentieren (nur Owner)")
+    lr.add_argument("job_id")
+    lr.add_argument("--reviewer", required=True, help="Wer hat geprueft (z.B. Kanzlei/Name)")
+    lr.add_argument("--note", default="", help="Ergebnis/Auflagen der Pruefung")
 
     sh = sub.add_parser("show", help="Auftrag inkl. Plan und Ergebnis anzeigen")
     sh.add_argument("job_id")
@@ -123,41 +151,59 @@ def run_command(orch: Orchestrator, args) -> int:
     cmd = args.command
 
     if cmd == "submit":
-        _print_job(orch.submit(args.request, owner))
+        _print_job(orch, orch.submit(args.request, owner, jurisdictions=args.jurisdiction))
+        return 0
+    if cmd == "jurisdictions":
+        _print_job(orch, orch.set_jurisdictions(args.job_id, args.codes, owner))
+        return 0
+    if cmd == "legal":
+        job = orch.jobs.get(args.job_id)
+        _print(f"Legal & Compliance fuer {job.id}: {job.legal_status.value}\n")
+        if job.legal_precheck:
+            _print(format_review(job.legal_precheck, "Vorpruefung Auftrag") + "\n")
+        for step in (job.plan.steps if job.plan else []):
+            if step.legal_review:
+                _print(format_review(step.legal_review, f"Schritt {step.agent_id}") + "\n")
+        return 0
+    if cmd == "legal-review-done":
+        _print_job(orch, orch.record_human_legal_review(args.job_id, args.reviewer, args.note, owner))
+        _print("\nMenschliche Rechtspruefung dokumentiert. Die Owner-Freigabe ist weiterhin erforderlich.")
         return 0
     if cmd == "show":
         job = orch.jobs.get(args.job_id)
         if args.json:
             _print(json.dumps(job.to_dict(), indent=2, ensure_ascii=False))
         else:
-            _print_job(job, full=True)
+            _print_job(orch, job, full=True)
         return 0
     if cmd == "tasks":
         for job in orch.jobs.list():
-            _print(f"{job.id}  {job.status.value:<18} {job.created_at}  {job.request[:60]}")
+            _print(f"{job.id}  {job.status.value:<18} {job.legal_status.value:<28} {job.created_at}  "
+                   f"{job.request[:50]}")
         return 0
     if cmd == "approve":
-        _print_job(orch.approve(args.job_id, owner, args.expected_plan))
+        _print_job(orch, orch.approve(args.job_id, owner, args.expected_plan))
         return 0
     if cmd == "start":
         job = orch.execute(args.job_id)
-        _print_job(job, full=True)
+        _print_job(orch, job, full=True)
         return 0 if job.status.value in ("completed", "waiting_for_owner") else 1
     if cmd == "cancel":
-        _print_job(orch.cancel(args.job_id, owner, args.reason))
+        _print_job(orch, orch.cancel(args.job_id, owner, args.reason))
         return 0
     if cmd == "clarify":
-        _print_job(orch.clarify(args.job_id, args.answer, owner))
+        _print_job(orch, orch.clarify(args.job_id, args.answer, owner))
         return 0
     if cmd == "resubmit":
-        _print_job(orch.resubmit(args.job_id, owner))
+        _print_job(orch, orch.resubmit(args.job_id, owner))
         return 0
     if cmd == "actions":
         items = orch.approvals.all() if args.all else orch.approvals.pending()
         if not items:
             _print("Keine offenen Aktionsvorschlaege.")
         for a in items:
-            _print(f"{a.id}  {a.status:<9} {a.action.action:<22} job={a.job_id}  {a.action.description}")
+            _print(f"{a.id}  {a.status:<9} {a.action.action:<22} {a.legal_status:<28} job={a.job_id}  "
+                   f"{a.action.description}")
         return 0
     if cmd in ("approve-action", "reject-action"):
         apr = orch.decide_action(args.approval_id, cmd == "approve-action", owner)

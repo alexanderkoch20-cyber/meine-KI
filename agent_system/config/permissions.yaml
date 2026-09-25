@@ -125,3 +125,15 @@ actions:
   approve_action:
     policy: deny
     description: Aktionen freigeben (nur der Owner)
+  bypass_legal_review:
+    policy: deny
+    description: Legal-Pruefung umgehen
+  override_legal_review:
+    policy: deny
+    description: Legal-Ergebnis ueberschreiben (nur der Owner nach menschlicher Rechtspruefung)
+  set_legal_status:
+    policy: deny
+    description: Legal-Status selbst setzen
+  modify_legal_knowledge:
+    policy: deny
+    description: Legal-Wissensbasis aendern (nur der Owner, per Datei)

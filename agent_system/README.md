@@ -6,9 +6,8 @@ gesamten AI-Workforce. Kein Agent beginnt, erweitert oder wiederholt einen
 Auftrag ohne seine ausdrueckliche Freigabe.
 
 ```
-Owner ──▶ Master-Agent ──▶ PLAN ──▶ Owner-Freigabe ──▶ Spezial-Agenten ──▶ QA ──▶ Master ──▶ Owner
-           (analysiert,     (waiting_     (OwnerApproval-      (arbeiten)       (prueft)  (Bericht)
-            plant nur)       for_owner)    Gate)
+OWNER → MASTER (plant) → LEGAL-Vorpruefung → OWNER-FREIGABE → SPEZIAL-AGENT
+      → LEGAL & COMPLIANCE REVIEW → QA → OWNER-FREIGABE (Aktionen) → AUSFUEHRUNG (derzeit Dry-Run)
 ```
 
 Der aktuelle Stand laeuft **komplett offline** (Mock-LLM): keine API-Kosten,
@@ -33,6 +32,12 @@ python -m agent_system tasks                          # alle Auftraege
 python -m agent_system actions                        # Aktionsvorschlaege der Agenten
 python -m agent_system approve-action APR_ID          # entscheiden (Dry-Run, nichts wird ausgefuehrt)
 python -m agent_system reject-action  APR_ID
+
+python -m agent_system submit "..." -j DE -j AT       # Rechtsraeume angeben (sonst Rueckfrage)
+python -m agent_system jurisdictions JOB_ID DE AT     # Rechtsraeume nachtragen
+python -m agent_system legal JOB_ID                   # Legal-Bericht: Rechtsraum, Regel, Quelle, Daten
+python -m agent_system legal-review-done JOB_ID --reviewer "RA Muster" --note "Ergebnis"
+                                                      # menschliche Rechtspruefung dokumentieren
 
 python -m agent_system audit [--job JOB_ID]           # Audit-Log + Integritaetspruefung
 python -m agent_system agents                         # Agenten, Modelle, inaktive Agenten
@@ -120,6 +125,71 @@ Ehrliche Einordnung: Das Gate schuetzt vor Fehlverhalten der Agenten-Logik
 und der Modell-Ausgaben (Agenten koennen nur Text liefern). Es ist keine
 Sandbox gegen beliebigen Python-Code im selben Prozess.
 
+## Chief Legal & Compliance Agent
+
+Besonders geschuetzte Kontrollinstanz (`agents/legal.py`, `core/legal.py`,
+Wissensbasis `config/legal.yaml`). **Keine Rechtsberatung** - er erkennt
+Risiken frueh, dokumentiert Quellen und stoppt bei Unsicherheit.
+
+**Wo er prueft (Pflicht, nicht umgehbar):**
+1. *Vorpruefung* jedes Auftrags beim Planen - vor der Owner-Freigabe.
+2. *Jedes Agenten-Ergebnis* und *jede externe Aktion* - nach dem
+   Spezial-Agenten, **vor** der QA. Auch "nicht erforderlich" wird mit
+   Begruendung dokumentiert (Job, Bericht, Audit-Log).
+
+**Legal-Status** (eigene Dimension neben dem Task-Status):
+
+| Status | Wirkung |
+|---|---|
+| `legal_review_not_required` | geprueft, nichts Relevantes gefunden (dokumentiert) |
+| `legal_review_required` | Auftrag ist rechtlich relevant - jeder Schritt wird geprueft |
+| `legal_review_passed` | keine blockierenden Risiken erkannt (keine Garantie!) - Owner-Freigabe trotzdem noetig |
+| `human_legal_review_required` | Stopp: Freigaben gesperrt bis zur dokumentierten menschlichen Rechtspruefung |
+| `legal_review_blocked` | Ausfuehrung blockiert; Inhalt wird nicht ausgeliefert |
+
+**Bewertung** (`core/legal.py`, deterministisch; das Modell kann nur verschaerfen):
+- Themen aus 6 Bereichen (Datenschutz, Werbung, Geistiges Eigentum,
+  E-Commerce, International, Vertraege) per Stichwort; externe Aktionen
+  (`publish_content`, `send_customer_message`, `spend_money`, `sign_contract`,
+  `generate_video`, ...) loesen immer eine Pruefung aus.
+- Risiko `critical` (z.B. Heilversprechen, gefaelschte Bewertungen, Nutzung
+  ohne Lizenz) -> **BLOCKED**. Risiko `high` (z.B. Testsieger-Claims,
+  Gesundheitsdaten, Drittlandtransfer, Vertraege, Marken) -> **HUMAN**.
+  Risiko `medium` -> **PASSED nur**, wenn fuer JEDEN Rechtsraum eine
+  vollstaendig dokumentierte und von einem Menschen verifizierte Quelle im
+  Katalog steht - sonst **HUMAN**.
+- **Jurisdiktion:** Owner-Angabe (`-j`) + im Text genannte Laender.
+  Ohne Rechtsraum -> Rueckfrage; unbekannter Rechtsraum (z.B. BR) -> HUMAN.
+  Deutsches Recht wird nie auf andere Laender uebertragen; AT/DE erben nur
+  EU-Recht (`parent: EU`).
+- Jede Feststellung dokumentiert: Rechtsraum, Regel, Quelle (Fundstelle +
+  URL), Fassungsdatum, Verifikation (wer/wann), Pruefdatum, Unsicherheiten,
+  Empfehlung. Jede Pruefung traegt den Hinweis "Keine Rechtsberatung ...
+  garantiert nicht, dass eine Handlung legal oder straffrei ist".
+- Aussagen wie "garantiert legal", "rechtssicher", "straffrei" werden aus
+  Modell-Antworten entfernt und fuehren zu HUMAN.
+
+**Grenzen (technisch erzwungen):** Der Legal-Agent kann nicht freigeben
+(Gate), keine Auftraege erteilen, nicht als Arbeitsschritt geplant werden,
+keine externen Aktionen vorschlagen (Konfig-Fehler) und aus seiner Antwort
+entsteht nie eine Aktion (Versuch -> verworfen, Audit
+`governance_violation`, HUMAN). Er kann nicht deaktiviert werden (Pflicht-Agent).
+Kein Agent kann Legal umgehen: `bypass_legal_review`, `override_legal_review`,
+`set_legal_status`, `modify_legal_knowledge` sind immer verboten; eine Aktion
+ohne Legal-Pruefung ist nicht freigebbar; ein behaupteter Legal-Status im
+Agenten-Ergebnis wird ignoriert.
+
+**BLOCKED / HUMAN aufheben** kann ausschliesslich der Owner, indem er eine
+**menschliche Rechtspruefung dokumentiert** (`legal-review-done`, mit Name der
+pruefenden Person). Das wird im Gate (nicht in der Job-Datei) gespeichert und
+auditiert; danach ist die normale Owner-Freigabe trotzdem noch noetig.
+
+**Quellenkatalog:** `config/legal.yaml` wird mit **unverifizierten** Quellen
+ausgeliefert (DSGVO, ePrivacy, KI-Verordnung, UCPD, Verbraucherrechte-RL,
+UWG, PAngV, TDDDG, UrhG, MarkenG, BGB). Solange niemand sie prueft
+(`verified_at`, `verified_by`, `version_date` eintragen), fuehrt jeder
+relevante Treffer zu HUMAN. Fuer CH, UK, US gibt es noch keine Eintraege.
+
 ## Agenten
 
 | ID | Rolle | Modell-Stufe | Aufgaben |
@@ -132,6 +202,7 @@ Sandbox gegen beliebigen Python-Code im selben Prozess.
 | `research` | Spezialist | sonnet | Markt, Wettbewerb, Trends, Zielgruppe, Quellen |
 | `coding` | Spezialist | sonnet | Software, Bugfixes, Tests, Infrastruktur |
 | `routine` | Spezialist | haiku | Formatierung, Klassifizierung, kurze Zusammenfassungen |
+| `legal` | Kontrollinstanz | opus | Recht, Datenschutz, Compliance: markieren, blockieren, Quellen, menschliche Pruefung verlangen |
 | `qa` | Pruefinstanz | sonnet | Pruefen, Brand-Regeln, riskante Aktionen blockieren, Freigaben verlangen |
 
 ## Projektstruktur
@@ -142,6 +213,7 @@ agent_system/
   orchestrator.py      Phasen Planen / Freigeben / Ausfuehren, Stopp-und-Melden
   config/
     governance.yaml    Owner-ID, freigegebene Agenten
+    legal.yaml         Legal-Wissensbasis: Rechtsraeume, Risikothemen, Quellenkatalog
     agents.yaml        Agenten-Definitionen, Orchestrierung (Retries standardmaessig 0)
     models.yaml        Modell-Stufen, LLM-Provider (mock|anthropic), Budget
     permissions.yaml   Aktionen + Policy (allow / require_approval / deny)
@@ -152,9 +224,12 @@ agent_system/
     master.py          Planung (LLM-JSON-Plan / Stichworte / Rueckfragen), Bericht
     specialist.py      Spezial-Agenten, VideoAgent
     qa.py              QA: Regelpruefung, Berechtigungen, Entscheidungs-Signale, LLM-Review
+    legal.py           Chief Legal & Compliance Agent (Vorpruefung + Schrittpruefung)
   core/
     rules.py           UNVERAENDERLICHE Owner-Regeln (geschuetzte/verbotene Aktionen)
-    governance.py      Akteure, OwnerApprovalGate, AuditLog (Hash-Kette)
+    governance.py      Akteure, OwnerApprovalGate (inkl. Legal-Sperren), AuditLog (Hash-Kette)
+    legal.py           Legal-Wissensbasis, Themen-/Rechtsraum-Erkennung, Bewertung
+    textmatch.py       Stichwortsuche mit Umlaut-Normalisierung
     jobs.py            Task-Zustandsautomat (mit Akteur-Pruefung) + Job-Store
     models.py          gemeinsames Datenmodell (TaskStatus, Job, Plan, ...)
     bus.py             MessageBus (einziger Kommunikationsweg, Ausfuehrungssperre)
@@ -162,7 +237,7 @@ agent_system/
     permissions.py     Berechtigungen (Least Privilege) + Aktions-Freigabe-Store
     llm.py             MockLLMClient, AnthropicLLMClient (gesperrt), Budget
     brand.py, secrets.py, logging_setup.py, errors.py
-tests/agent_system/    145 Tests (davon test_governance.py fuer die Owner-Regel),
+tests/agent_system/    188 Tests (test_governance.py: Owner-Regel, test_legal.py: Legal & Compliance),
                        Netzwerk in Tests hart blockiert
 ```
 
@@ -174,8 +249,10 @@ Nur ueber den MessageBus, jede Nachricht landet im Trace des Auftrags:
 owner  ─task_assignment─▶ master          (Planung)
 master ─plan_proposal───▶ owner           (Plan / Rueckfragen)
           ... Owner-Freigabe ueber das Gate ...
+master ─legal_review_request─▶ legal      (Vorpruefung des Auftrags)
 master ─task_assignment─▶ spezialist      (nur wenn Auftrag running)
 spezialist ─task_result─▶ master
+master ─legal_review_request─▶ legal ─legal_review_report─▶ master   (vor QA)
 master ─qa_request──────▶ qa ─qa_report─▶ master
 master ─approval_request▶ owner           (Vorschlaege, nie ausgefuehrt)
 master ─final_result / stop_report──▶ owner

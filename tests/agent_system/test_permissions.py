@@ -18,7 +18,8 @@ RESTRICTED = ["spend_money", "publish_content", "send_customer_message", "delete
 def test_all_restricted_actions_require_approval(config):
     for action in RESTRICTED:
         assert config.action_policies[action] == "require_approval"
-    for action in ("reveal_secret", "modify_permissions", "modify_governance", "approve_task", "approve_action"):
+    for action in ("reveal_secret", "modify_permissions", "modify_governance", "approve_task", "approve_action",
+                   "bypass_legal_review", "override_legal_review", "set_legal_status", "modify_legal_knowledge"):
         assert config.action_policies[action] == "deny"
 
 

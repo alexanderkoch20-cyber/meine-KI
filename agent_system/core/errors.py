@@ -91,3 +91,10 @@ class ClarificationRequiredError(AgentSystemError):
     """Der Auftrag ist unklar - der Owner muss zuerst Rueckfragen beantworten."""
 
     code = "clarification_required"
+
+
+class LegalReviewRequiredError(AgentSystemError):
+    """Legal & Compliance hat blockiert oder verlangt eine menschliche Rechtspruefung.
+    Kein Agent kann das aufheben - nur der Owner, nach dokumentierter menschlicher Pruefung."""
+
+    code = "legal_review_required"

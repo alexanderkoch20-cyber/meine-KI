@@ -12,19 +12,22 @@ import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 import yaml
 
 from .errors import ConfigError
-from .rules import AGENT_FORBIDDEN_ACTIONS, OWNER_APPROVAL_ACTIONS, REQUIRED_AGENTS
+from .rules import AGENT_FORBIDDEN_ACTIONS, CONTROL_ROLES, OWNER_APPROVAL_ACTIONS, REQUIRED_AGENTS
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .legal import LegalKnowledge
 
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_DIR = PACKAGE_DIR / "config"
 DEFAULT_PROMPTS_DIR = PACKAGE_DIR / "prompts"
 DEFAULT_BRAND_FILE = PACKAGE_DIR / "brand" / "brand_knowledge.yaml"
 
-VALID_ROLES = {"master", "specialist", "qa"}
+VALID_ROLES = {"master", "specialist", "qa", "legal"}
 VALID_POLICIES = {"allow", "require_approval", "deny"}
 
 
@@ -73,6 +76,8 @@ class SystemConfig:
     action_descriptions: Mapping[str, str]
     default_policy: str
     max_llm_calls_per_job: int
+    #: Legal-&-Compliance-Wissensbasis (config/legal.yaml), unveraenderlich.
+    legal: "LegalKnowledge"
     #: Agenten, die in agents.yaml stehen, aber (noch) nicht vom Owner freigegeben sind.
     inactive_agents: tuple[str, ...] = ()
     #: SHA-256 ueber alle Konfigurations- und Prompt-Dateien.
@@ -213,6 +218,11 @@ def load_config(
         unknown = allowed - set(policies)
         if unknown:
             raise ConfigError(f"Agent '{agent_id}': unbekannte Aktionen in allowed_actions: {sorted(unknown)}")
+        if role in CONTROL_ROLES and allowed & OWNER_APPROVAL_ACTIONS:
+            raise ConfigError(
+                f"Agent '{agent_id}' ist eine Kontrollinstanz ({role}) und darf keine externen/"
+                f"geschuetzten Aktionen vorschlagen: {sorted(allowed & OWNER_APPROVAL_ACTIONS)}"
+            )
         if agent_id not in governance.approved_agents:
             inactive.append(agent_id)  # neuer Agent ohne Owner-Freigabe -> inaktiv
             continue
@@ -236,6 +246,12 @@ def load_config(
         raise ConfigError("Es muss genau einen Master-Agenten geben")
     if roles.count("qa") != 1:
         raise ConfigError("Es muss genau einen QA-Agenten geben")
+    if roles.count("legal") != 1:
+        raise ConfigError("Es muss genau einen Legal-&-Compliance-Agenten geben")
+
+    from .legal import load_legal_knowledge  # spaeter Import: legal.py nutzt models/rules
+
+    legal = load_legal_knowledge(_read_yaml(config_dir / "legal.yaml"), policies)
 
     orch_raw = agents_raw.get("orchestration") or {}
     orchestration = OrchestrationSettings(
@@ -254,6 +270,7 @@ def load_config(
         action_descriptions=MappingProxyType(descriptions),
         default_policy=default_policy,
         max_llm_calls_per_job=int((models_raw.get("budget") or {}).get("max_llm_calls_per_job", 40)),
+        legal=legal,
         inactive_agents=tuple(inactive),
         fingerprint=compute_fingerprint(config_dir, prompts_dir),
         prompts_dir=prompts_dir,

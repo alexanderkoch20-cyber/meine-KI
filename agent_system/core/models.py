@@ -47,6 +47,35 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class LegalStatus(str, Enum):
+    """Rechtlicher Pruefstatus - eine eigene Dimension NEBEN dem Task-Status.
+
+    NOT_REQUIRED          geprueft, keine rechtlich relevanten Merkmale (dokumentiert)
+    REQUIRED              Auftrag ist rechtlich relevant -> jeder Schritt wird geprueft
+    PASSED                keine blockierenden Risiken erkannt (keine Garantie!)
+    BLOCKED               Ausfuehrung blockiert (kritisches Risiko)
+    HUMAN_REQUIRED        menschliche Rechtspruefung zwingend (Unsicherheit/hohes Risiko)
+    """
+
+    NOT_REQUIRED = "legal_review_not_required"
+    REQUIRED = "legal_review_required"
+    PASSED = "legal_review_passed"
+    BLOCKED = "legal_review_blocked"
+    HUMAN_REQUIRED = "human_legal_review_required"
+
+
+#: Rangfolge fuer die Zusammenfassung mehrerer Pruefungen (hoeher = strenger).
+LEGAL_SEVERITY = {
+    LegalStatus.NOT_REQUIRED: 0,
+    LegalStatus.PASSED: 1,
+    LegalStatus.REQUIRED: 2,
+    LegalStatus.HUMAN_REQUIRED: 3,
+    LegalStatus.BLOCKED: 4,
+}
+#: Status, die ohne menschliche Rechtspruefung weiterlaufen duerfen.
+LEGAL_CLEARED = frozenset({LegalStatus.NOT_REQUIRED, LegalStatus.REQUIRED, LegalStatus.PASSED})
+
+
 class StepStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -74,6 +103,8 @@ class MessageType(str, Enum):
     QA_REQUEST = "qa_request"
     QA_REPORT = "qa_report"
     PLAN_PROPOSAL = "plan_proposal"
+    LEGAL_REVIEW_REQUEST = "legal_review_request"
+    LEGAL_REVIEW_REPORT = "legal_review_report"
     OWNER_DECISION = "owner_decision"
     APPROVAL_REQUEST = "approval_request"
     STOP_REPORT = "stop_report"
@@ -230,6 +261,88 @@ class QAReport:
 
 
 # ---------------------------------------------------------------------------
+# Legal & Compliance
+# ---------------------------------------------------------------------------
+
+LEGAL_DISCLAIMER = (
+    "Keine Rechtsberatung und keine verbindliche Rechtsauskunft. Diese automatische "
+    "Einschaetzung dient der Risiko-Frueherkennung, ersetzt keine Pruefung durch eine "
+    "qualifizierte Rechtsperson und garantiert nicht, dass eine Handlung legal oder "
+    "straffrei ist. Entscheidungen trifft ausschliesslich der Owner."
+)
+
+
+@dataclass
+class LegalFinding:
+    """Ein dokumentiertes Rechtsrisiko - mit Rechtsraum, Regel, Quelle, Daten, Unsicherheiten."""
+
+    topic: str
+    area: str
+    label: str
+    risk: str                      # medium | high | critical
+    status: LegalStatus            # PASSED | HUMAN_REQUIRED | BLOCKED
+    reason_code: str               # z.B. verified_source, no_jurisdiction, unverified_source
+    jurisdiction: str | None = None
+    evidence: str = ""
+    rule_id: str | None = None
+    rule_title: str | None = None
+    reference: str | None = None
+    url: str | None = None
+    version_date: str | None = None        # Veroeffentlichungs-/Fassungsdatum laut Katalog
+    source_verified_at: str | None = None  # wann ein Mensch die Quelle geprueft hat
+    source_verified_by: str | None = None
+    reviewed_at: str = field(default_factory=utcnow)  # Pruefdatum dieser Einschaetzung
+    uncertainties: list[str] = field(default_factory=list)
+    recommendation: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["status"] = self.status.value
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "LegalFinding":
+        d = dict(d)
+        d["status"] = LegalStatus(d["status"])
+        return cls(**d)
+
+
+@dataclass
+class LegalReview:
+    scope: str                     # "task" (Vorpruefung) | "step" (Ergebnis eines Agenten)
+    subject_id: str
+    status: LegalStatus
+    jurisdictions: list[str] = field(default_factory=list)
+    findings: list[LegalFinding] = field(default_factory=list)
+    #: Begruendung - auch (gerade) wenn keine Pruefung noetig war.
+    reasons: list[str] = field(default_factory=list)
+    checked_areas: list[str] = field(default_factory=list)
+    #: Rueckfragen an den Owner (z.B. fehlende Jurisdiktion).
+    questions: list[str] = field(default_factory=list)
+    #: Versuche des Legal-Agenten selbst, Aktionen auszuloesen (werden nie ausgefuehrt).
+    agent_violations: list[str] = field(default_factory=list)
+    reviewed_by: str = "legal"
+    reviewed_at: str = field(default_factory=utcnow)
+    disclaimer: str = LEGAL_DISCLAIMER
+    #: Vom Owner dokumentierte menschliche Rechtspruefung (Kopie; massgeblich ist das Gate).
+    human_review: dict[str, Any] | None = None
+    id: str = field(default_factory=lambda: new_id("lgl"))
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["status"] = self.status.value
+        d["findings"] = [f.to_dict() for f in self.findings]
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "LegalReview":
+        d = dict(d)
+        d["status"] = LegalStatus(d["status"])
+        d["findings"] = [LegalFinding.from_dict(f) for f in d.get("findings", [])]
+        return cls(**d)
+
+
+# ---------------------------------------------------------------------------
 # Plan & Job
 # ---------------------------------------------------------------------------
 
@@ -244,6 +357,7 @@ class PlanStep:
     attempts: int = 0
     result: AgentResponse | None = None
     qa_report: QAReport | None = None
+    legal_review: LegalReview | None = None
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -256,6 +370,7 @@ class PlanStep:
             "attempts": self.attempts,
             "result": self.result.to_dict() if self.result else None,
             "qa_report": self.qa_report.to_dict() if self.qa_report else None,
+            "legal_review": self.legal_review.to_dict() if self.legal_review else None,
             "error": self.error,
         }
 
@@ -270,6 +385,7 @@ class PlanStep:
             attempts=d.get("attempts", 0),
             result=AgentResponse.from_dict(d["result"]) if d.get("result") else None,
             qa_report=QAReport.from_dict(d["qa_report"]) if d.get("qa_report") else None,
+            legal_review=LegalReview.from_dict(d["legal_review"]) if d.get("legal_review") else None,
             error=d.get("error"),
         )
 
@@ -319,6 +435,10 @@ class ApprovalRequest:
     reason: str
     id: str = field(default_factory=lambda: new_id("apr"))
     status: str = "pending"  # pending | approved | rejected
+    #: Legal-Status der Pruefung, die diese Aktion abdeckt. Ohne Legal-Pruefung
+    #: (Default) kann die Aktion nicht freigegeben werden.
+    legal_status: str = LegalStatus.REQUIRED.value
+    legal_review_id: str | None = None
     decided_at: str | None = None
     decided_by: str | None = None
     created_at: str = field(default_factory=utcnow)
@@ -357,6 +477,11 @@ class Job:
     error: str | None = None
     approvals: list[str] = field(default_factory=list)
     llm_calls: int = 0
+    #: Rechtsraeume, fuer die der Auftrag gilt (Owner-Angabe + Erkennung im Text).
+    #: Leer = unbekannt. Es wird NIE automatisch deutsches Recht angenommen.
+    jurisdictions: list[str] = field(default_factory=list)
+    #: Legal-Vorpruefung des Auftrags (vor der Owner-Freigabe).
+    legal_precheck: LegalReview | None = None
     #: ID des Auftrags, aus dem dieser (per Owner-Entscheidung) neu erstellt wurde.
     resubmitted_from: str | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)
@@ -364,11 +489,28 @@ class Job:
     created_at: str = field(default_factory=utcnow)
     updated_at: str = field(default_factory=utcnow)
 
+    def legal_reviews(self) -> list[LegalReview]:
+        reviews = [self.legal_precheck] if self.legal_precheck else []
+        if self.plan:
+            reviews += [s.legal_review for s in self.plan.steps if s.legal_review]
+        return reviews
+
+    @property
+    def legal_status(self) -> LegalStatus:
+        """Strengster Legal-Status aller Pruefungen dieses Auftrags."""
+        reviews = self.legal_reviews()
+        if not reviews:
+            return LegalStatus.REQUIRED  # noch nicht geprueft
+        return max((r.status for r in reviews), key=LEGAL_SEVERITY.__getitem__)
+
     def to_dict(self) -> dict[str, Any]:
         d = {f: getattr(self, f) for f in self.__dataclass_fields__}
         d["status"] = self.status.value
         d["plan"] = self.plan.to_dict() if self.plan else None
-        for key in ("open_questions", "owner_notes", "recommendations", "approvals", "trace", "history"):
+        d["legal_precheck"] = self.legal_precheck.to_dict() if self.legal_precheck else None
+        d["legal_status"] = self.legal_status.value
+        for key in ("open_questions", "owner_notes", "recommendations", "approvals", "trace", "history",
+                    "jurisdictions"):
             d[key] = list(d[key])
         return d
 
@@ -377,4 +519,5 @@ class Job:
         d = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
         d["status"] = TaskStatus(d["status"])
         d["plan"] = Plan.from_dict(d["plan"]) if d.get("plan") else None
+        d["legal_precheck"] = LegalReview.from_dict(d["legal_precheck"]) if d.get("legal_precheck") else None
         return cls(**d)
