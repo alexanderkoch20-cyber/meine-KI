@@ -23,6 +23,7 @@ from ..core.models import AgentRequest, AgentResponse, QAIssue, QAReport, QAVerd
 from ..core.permissions import Decision, PermissionPolicy
 from ..core.rules import AGENT_FORBIDDEN_ACTIONS, STOP_FOR_DECISION_ACTION
 from ..core.secrets import contains_secret
+from ..core.textmatch import normalize
 from .base import BaseAgent, parse_json_object
 
 _VERDICT_RANK = {QAVerdict.APPROVED: 0, QAVerdict.NEEDS_REVISION: 1, QAVerdict.BLOCKED: 2}
@@ -46,11 +47,15 @@ class QAAgent(BaseAgent):
             issues.append(QAIssue("secrets", "Ergebnis enthaelt einen API-Schluessel oder ein Passwort",
                                   Severity.CRITICAL))
 
-        lower = resp.content.lower()
-        for word in self.ctx.brand.forbidden_words:
-            if re.search(r"(?<!\w)" + re.escape(word.lower()) + r"(?!\w)", lower):
-                issues.append(QAIssue("brand_no_go", f"Verbotenes Wort laut Brand-Regeln: '{word}'",
+        text = normalize(resp.content)
+        for phrase in self.ctx.brand.forbidden_phrases:
+            if re.search(r"(?<!\w)" + re.escape(normalize(phrase)) + r"(?!\w)", text):
+                issues.append(QAIssue("brand_no_go", f"No-Go laut Brand Knowledge Base: '{phrase}'",
                                       Severity.ERROR))
+        for phrase in self.ctx.brand.avoid_phrases:
+            if re.search(r"(?<!\w)" + re.escape(normalize(phrase)) + r"(?!\w)", text):
+                issues.append(QAIssue("brand_voice", f"Laut Brand Voice zu vermeiden: '{phrase}'",
+                                      Severity.WARNING))
 
         for warning in resp.metadata.get("parse_warnings", []):
             issues.append(QAIssue("format", warning, Severity.WARNING))
@@ -77,7 +82,8 @@ class QAAgent(BaseAgent):
 
         if self.ctx.brand.completeness() < 0.5:
             issues.append(QAIssue("brand_context",
-                                  "Brand-Wissen ist noch unvollstaendig - Ergebnis ist eher allgemein",
+                                  f"Brand Knowledge Base {self.ctx.brand.info.label} ist unvollstaendig "
+                                  "(Pflichtangaben fehlen) - Ergebnis ist eher allgemein",
                                   Severity.INFO))
 
         report.verdict = self._verdict_from(issues)

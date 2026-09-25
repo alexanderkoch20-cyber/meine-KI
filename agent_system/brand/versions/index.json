@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "versions": [
+    {
+      "version": 1,
+      "file": "v0001.yaml",
+      "content_hash": "e05cb627b32d038a0d065463e30456d739f2d2c546463799f57adfd4d11b591f",
+      "file_hash": "c9e0136cce3bb25dc428d996547d86f1c21813ff76804e36078ecc55d3c00356",
+      "parent_hash": null,
+      "committed_at": "2026-09-25T21:35:43+00:00",
+      "committed_by": "system:bootstrap",
+      "note": "Initiale leere Vorlage - alle Felder NOT_PROVIDED"
+    }
+  ]
+}

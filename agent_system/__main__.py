@@ -16,7 +16,13 @@ Legal & Compliance:
     python -m agent_system legal-review-done JOB_ID --reviewer "RA Muster" --note "..."
 
 Weitere Owner-Befehle: clarify, cancel, resubmit, actions, approve-action,
-reject-action, audit. Info: agents, brand check, tasks.
+reject-action, audit. Info: agents, tasks.
+
+Brand Knowledge Base (agent_system/brand/):
+    python -m agent_system brand check [--agent social]  # fehlende Pflichtinformationen
+    python -m agent_system brand show [--agent social] [--version N]
+    python -m agent_system brand commit --note "..."     # neue Version freigeben (nur Owner)
+    python -m agent_system brand history | diff 1 2 | onboarding [--write]
 """
 
 from __future__ import annotations
@@ -27,10 +33,11 @@ import os
 import sys
 from pathlib import Path
 
-from .core.brand import BRAND_SECTIONS
 from .core.config import load_config
 from .core.errors import AgentSystemError
 from .core.governance import owner_session
+from .core.brand_onboarding import render_onboarding
+from .core.brand_store import BrandRepository
 from .core.legal import format_review
 from .core.logging_setup import setup_logging
 from .core.models import Job
@@ -84,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="agent_system", description="KI-Agenten-Orchestrierung (Owner-CLI)")
     p.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Ablage fuer Jobs, Freigaben, Audit, Logs")
     p.add_argument("--config-dir", default=None)
-    p.add_argument("--brand-file", default=None)
+    p.add_argument("--brand-dir", default=None, help="Ordner der Brand Knowledge Base")
     p.add_argument("--verbose", action="store_true", help="Logs zusaetzlich auf der Konsole")
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -140,10 +147,77 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--job", default=None)
 
     sub.add_parser("agents", help="Agenten und Modelle anzeigen")
-    b = sub.add_parser("brand", help="Brand-Wissen pruefen")
-    b.add_argument("action", choices=["check"])
-    b.add_argument("--show-context", action="store_true")
+    b = sub.add_parser("brand", help="Brand Knowledge Base: check, show, commit, history, diff, onboarding")
+    b.add_argument("action", choices=["check", "show", "commit", "history", "diff", "onboarding"])
+    b.add_argument("versions", nargs="*", type=int, help="bei diff: zwei Versionsnummern")
+    b.add_argument("--agent", default=None, help="Sicht eines bestimmten Agenten")
+    b.add_argument("--version", type=int, default=None, help="bei show: bestimmte Version")
+    b.add_argument("--note", default="", help="bei commit: Aenderungsnotiz")
+    b.add_argument("--write", action="store_true", help="bei onboarding: ONBOARDING.md neu schreiben")
+    b.add_argument("--show-context", action="store_true", help="bei check: Agenten-Kontext mit ausgeben")
     return p
+
+
+def run_brand(orch: Orchestrator, args, owner) -> int:
+    repo = BrandRepository(orch.config.brand_dir)
+    action = args.action
+    if action == "check":
+        from .core.brand import BrandKnowledge, read_brand_yaml
+
+        validation = repo.validate_working()
+        if not validation.ok:
+            for err in validation.errors:
+                _print(f"FEHLER: {err}")
+            return 2
+        working = BrandKnowledge(read_brand_yaml(repo.working_path), repo.schema, source=repo.working_path)
+        agents = [args.agent] if args.agent else list(orch.config.agents)
+        report = working.check(agents, validation, known_jurisdictions=orch.config.legal.jurisdictions)
+        current = repo.current()
+        _print(f"Arbeitskopie: {repo.working_path}")
+        _print(f"Freigegeben (von Agenten genutzt): {current.info.label} "
+               f"({current.info.committed_at or '-'}, {current.info.committed_by or '-'})")
+        if repo.has_uncommitted_changes():
+            _print("ACHTUNG: Die Arbeitskopie hat Aenderungen, die noch NICHT freigegeben sind "
+                   "-> python -m agent_system brand commit --note \"...\"")
+        _print("")
+        _print(report.to_text(repo.schema, title="Pruefung der Arbeitskopie"))
+        if args.show_context:
+            _print("\n" + working.to_prompt_context(args.agent))
+        return 0
+    if action == "show":
+        brand = repo.load_version(args.version) if args.version else repo.current()
+        _print(brand.to_prompt_context(args.agent))
+        return 0
+    if action == "commit":
+        info = orch.commit_brand(owner, args.note)
+        _print(f"Brand Knowledge Base {info.label} freigegeben (Hash {info.content_hash[:12]}). "
+               "Alle Agenten nutzen ab jetzt diese Version. Freigegebene, noch nicht gestartete Auftraege "
+               "brauchen eine erneute Freigabe.")
+        return 0
+    if action == "history":
+        for e in repo.history():
+            _print(f"v{e['version']:<4} {e['committed_at']}  {e['committed_by']:<18} {e['content_hash'][:12]}  "
+                   f"{e.get('note') or ''}")
+        problems = repo.verify_index()
+        _print("Integritaet: " + ("OK" if not problems else "VERLETZT - " + "; ".join(problems)))
+        return 0 if not problems else 3
+    if action == "diff":
+        if len(args.versions) != 2:
+            _print("Bitte zwei Versionen angeben, z.B.: brand diff 1 2")
+            return 2
+        changes = repo.diff(*args.versions)
+        _print("\n".join(changes) if changes else "Keine Unterschiede.")
+        return 0
+    if action == "onboarding":
+        text = render_onboarding(repo.schema)
+        path = repo.dir / "ONBOARDING.md"
+        if args.write:
+            path.write_text(text, encoding="utf-8")
+            _print(f"{path} aktualisiert.")
+        else:
+            _print(text)
+        return 0
+    return 1
 
 
 def run_command(orch: Orchestrator, args) -> int:
@@ -225,15 +299,7 @@ def run_command(orch: Orchestrator, args) -> int:
         _print(f"\nLLM-Provider: {orch.config.provider}   Owner: {orch.config.governance.owner_name}")
         return 0
     if cmd == "brand":
-        brand = orch.brand
-        missing = brand.missing_sections()
-        _print(f"Brand-Datei: {brand.source}")
-        _print(f"Vollstaendigkeit: {brand.completeness():.0%}")
-        for key, label in BRAND_SECTIONS.items():
-            _print(f"  [{' ' if key in missing else 'x'}] {label} ({key})")
-        if args.show_context:
-            _print("\n" + brand.to_prompt_context())
-        return 0
+        return run_brand(orch, args, owner)
     return 1
 
 
@@ -242,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     data_dir = Path(args.data_dir)
     setup_logging(log_file=data_dir / "logs" / "agent_system.jsonl", console=args.verbose)
     try:
-        config = load_config(config_dir=args.config_dir, brand_file=args.brand_file)
+        config = load_config(config_dir=args.config_dir, brand_dir=args.brand_dir)
         return run_command(Orchestrator(config=config, data_dir=data_dir), args)
     except AgentSystemError as exc:
         print(f"Fehler ({exc.code}): {redact(str(exc))}", file=sys.stderr)

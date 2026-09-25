@@ -48,6 +48,7 @@ from .agents.master import MasterAgent, topological_order
 from .agents.qa import QAAgent
 from .agents.specialist import SPECIALIST_CLASSES, SpecialistAgent
 from .core.brand import BrandKnowledge
+from .core.brand_store import BrandContextLoader, BrandRepository
 from .core.bus import MessageBus
 from .core.config import SystemConfig, load_config
 from .core.errors import (
@@ -86,6 +87,8 @@ class _Team:
     """Pro Phase neu erzeugte Agenten-Instanzen (gemeinsames LLM-Budget je Job)."""
 
     def __init__(self, config: SystemConfig, llm: LLMClient, brand: BrandKnowledge):
+        # EINE Brand-Momentaufnahme fuer alle Agenten dieses Teams.
+        self.brand = brand
         ctx = AgentContext(config=config, llm=llm, brand=brand)
         self.bus = MessageBus()
         self.master: MasterAgent | None = None
@@ -131,7 +134,10 @@ class Orchestrator:
     ):
         self.config = config or load_config()
         self.llm = llm or create_llm_client(self.config)
-        self.brand = brand or BrandKnowledge.load(self.config.brand_file)
+        # Brand-Context-Loader: alle Agenten nutzen die neueste FREIGEGEBENE Version
+        # der Brand Knowledge Base (oder eine fest vorgegebene, z.B. in Tests).
+        self.brand_loader = (BrandContextLoader(fixed=brand) if brand is not None
+                             else BrandContextLoader(BrandRepository(self.config.brand_dir)))
         data_dir = Path(data_dir) if data_dir else None
         self.jobs = job_store or JobStore(data_dir / "jobs" if data_dir else None)
         self.approvals = approval_store or ApprovalStore(data_dir / "approvals.json" if data_dir else None)
@@ -158,9 +164,23 @@ class Orchestrator:
         self._plan(job)
         return job
 
+    @property
+    def brand(self) -> BrandKnowledge:
+        """Aktuelle freigegebene Brand-Basis (bei jedem Zugriff frisch geladen)."""
+        return self.brand_loader.load()
+
+    def commit_brand(self, actor: Actor, note: str):
+        """Owner gibt die Arbeitskopie der Brand Knowledge Base als neue Version frei."""
+        self.gate.require_owner(actor, "commit_brand_knowledge")
+        repo = self.brand_loader.repository or BrandRepository(self.config.brand_dir)
+        info = repo.commit(actor, self.config.governance.owner_id, note)
+        self.audit.record("brand_version_committed", actor, None, version=info.version,
+                          content_hash=info.content_hash, note=note)
+        return info
+
     def approve(self, job_id: str, actor: Actor, expected_plan: str | None = None) -> Job:
         job = self.jobs.get(job_id)
-        self.gate.approve_task(job, actor, expected_plan)
+        self.gate.approve_task(job, actor, expected_plan, brand_hash=self.brand.content_hash)
         self.jobs.save(job)
         return job
 
@@ -250,16 +270,19 @@ class Orchestrator:
         Freigabe: ``OwnerApprovalRequiredError`` - es passiert nichts."""
         job = self.jobs.get(job_id)
         try:
-            self.gate.assert_may_execute(job)  # wirft bei fehlender/ungueltiger Freigabe
+            brand = self.brand
+            self.gate.assert_may_execute(job, brand_hash=brand.content_hash)  # wirft ohne gueltige Freigabe
         finally:
             self.jobs.save(job)  # z.B. Rueckfall auf WAITING_FOR_OWNER nach Konfig-Aenderung
         transition(job, TaskStatus.RUNNING, SYSTEM, "Ausfuehrung nach Owner-Freigabe")
         job.stop_reason = None  # Meldungen einer frueheren Pause sind mit der neuen Freigabe erledigt
         job.recommendations = []
+        job.brand_version, job.brand_hash = brand.version, brand.content_hash
         self.audit.record("execution_started", SYSTEM, job.id, round=job.approval_round,
-                          plan_fingerprint=job.plan.fingerprint())
+                          plan_fingerprint=job.plan.fingerprint(), brand_version=brand.version,
+                          brand_hash=brand.content_hash)
         llm = BudgetedLLMClient(self.llm, self.config.max_llm_calls_per_job, already_used=job.llm_calls)
-        team = _Team(self.config, llm, self.brand)
+        team = _Team(self.config, llm, brand)
         try:
             self._run(job, team)
         except ExternalServiceNotApprovedError as exc:
@@ -279,7 +302,9 @@ class Orchestrator:
 
     def _plan(self, job: Job, replan: bool = False) -> None:
         llm = BudgetedLLMClient(self.llm, self.config.max_llm_calls_per_job, already_used=job.llm_calls)
-        team = _Team(self.config, llm, self.brand)
+        brand = self.brand
+        job.brand_version, job.brand_hash = brand.version, brand.content_hash
+        team = _Team(self.config, llm, brand)
         try:
             plan = team.bus.send(job, AgentMessage(
                 sender=job.requested_by, recipient=team.master.id, type=MessageType.TASK_ASSIGNMENT,
@@ -317,19 +342,18 @@ class Orchestrator:
         self.audit.record("plan_replanned" if replan else "plan_proposed", Actor.agent(team.master.id), job.id,
                           plan_fingerprint=plan.fingerprint(), source=plan.source,
                           steps=[f"{s.agent_id}: {s.instruction[:80]}" for s in plan.steps],
-                          questions=plan.questions)
+                          questions=plan.questions, brand_version=brand.version)
         self.jobs.save(job)
 
     def _run(self, job: Job, team: _Team) -> None:
         order = topological_order(job.plan)
         by_id = {s.id: s for s in job.plan.steps}
-        brand_context = self.brand.to_prompt_context()
 
         for step in order:
             if step.status != StepStatus.PENDING:
                 continue  # bereits in einer frueheren (freigegebenen) Runde erledigt
             upstream = {by_id[d].agent_id: by_id[d].result.content for d in step.depends_on}
-            ok = self._execute_step(job, team, step, brand_context, upstream)
+            ok = self._execute_step(job, team, step, team.brand.to_prompt_context(step.agent_id), upstream)
             self.jobs.save(job)
             if not ok:
                 if step.legal_review and step.legal_review.status == LegalStatus.BLOCKED:

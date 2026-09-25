@@ -41,7 +41,9 @@ python -m agent_system legal-review-done JOB_ID --reviewer "RA Muster" --note "E
 
 python -m agent_system audit [--job JOB_ID]           # Audit-Log + Integritaetspruefung
 python -m agent_system agents                         # Agenten, Modelle, inaktive Agenten
-python -m agent_system brand check                    # Was fehlt im Brand-Wissen?
+python -m agent_system brand check [--agent social]   # fehlende Pflichtinformationen
+python -m agent_system brand commit --note "..."      # neue Brand-Version freigeben (nur Owner)
+python -m agent_system brand show|history|diff 1 2|onboarding
 
 pytest tests/agent_system
 ```
@@ -217,7 +219,11 @@ agent_system/
     agents.yaml        Agenten-Definitionen, Orchestrierung (Retries standardmaessig 0)
     models.yaml        Modell-Stufen, LLM-Provider (mock|anthropic), Budget
     permissions.yaml   Aktionen + Policy (allow / require_approval / deny)
-  brand/brand_knowledge.yaml   zentrale Brand-Wissensbasis
+  brand/
+    brand_knowledge.yaml   Arbeitskopie der Brand Knowledge Base (Owner traegt hier ein)
+    schema.yaml            Schema: 10 Bereiche, Felder, Pflicht, Agenten-Relevanz, Onboarding-Fragen
+    ONBOARDING.md          Fragenkatalog fuer den Owner (aus dem Schema erzeugt)
+    versions/              freigegebene, unveraenderliche Versionen + index.json (Hash-Kette)
   prompts/             System-Prompts je Agent + _common.md (Owner-Regel fuer alle)
   agents/
     base.py            BaseAgent, actions-Block-Parser, JSON-Parser
@@ -236,8 +242,13 @@ agent_system/
     config.py          Laden + Validieren + Fingerabdruck, frozen
     permissions.py     Berechtigungen (Least Privilege) + Aktions-Freigabe-Store
     llm.py             MockLLMClient, AnthropicLLMClient (gesperrt), Budget
-    brand.py, secrets.py, logging_setup.py, errors.py
-tests/agent_system/    188 Tests (test_governance.py: Owner-Regel, test_legal.py: Legal & Compliance),
+    brand.py           BrandKnowledge (eingefrorene Version), Brand-Check, Agenten-Kontext
+    brand_schema.py    Schema laden + Validierung (NOT_PROVIDED / UNKNOWN / NOT_APPLICABLE)
+    brand_store.py     Versionierung (commit/history/diff/Integritaet) + BrandContextLoader
+    brand_onboarding.py  erzeugt ONBOARDING.md aus dem Schema
+    secrets.py, logging_setup.py, errors.py
+tests/agent_system/    223 Tests (test_governance.py: Owner-Regel, test_legal.py: Legal & Compliance,
+                       test_brand.py: Brand Knowledge Base),
                        Netzwerk in Tests hart blockiert
 ```
 
@@ -264,19 +275,52 @@ Feste Schnittstellen: `MasterAgent.plan(Job) -> Plan`,
 Aktionen in einem ```` ```actions ```` -JSON-Block vor; die QA prueft jede
 einzelne gegen Agenten-Rechte und Owner-Regeln.
 
-## Brand-Informationen eintragen
+## Brand Knowledge Base
 
-1. `agent_system/brand/brand_knowledge.yaml` ausfuellen (Brandname, Mission,
-   Produkte, Dienstleistungen, Zielgruppe, Positionierung, Tonalitaet,
-   Markenwerte, Designregeln, No-Go-Regeln, Ziele, Wettbewerber, bestehende
-   Inhalte). Leere Felder sind erlaubt.
-2. `no_go_rules.forbidden_words` erzwingt die QA automatisch.
-3. `python -m agent_system brand check --show-context` zeigt Luecken und den
-   Kontext, den jeder Agent bekommt.
+Zentrale, versionierte Wissensbasis fuer die gesamte Workforce
+(`agent_system/brand/`). **Es wird nichts erfunden:** Jedes Feld steht auf
+`NOT_PROVIDED`, bis der Owner es beantwortet. Weitere Platzhalter: `UNKNOWN`
+(Owner weiss es nicht) und `NOT_APPLICABLE` (trifft nicht zu - bei Kernangaben
+wie Brandname nicht erlaubt).
+
+**10 Bereiche** (Details und Fragen: `brand/ONBOARDING.md`): Brand Identity,
+Angebot, Zielgruppen, Positionierung, Brand Voice, Visuelle Identitaet,
+Content, No-Gos, Recht & Compliance, Strategische Ziele.
+
+**Ablauf fuer den Owner:**
+1. Fragen in `brand/ONBOARDING.md` lesen, Antworten in
+   `brand/brand_knowledge.yaml` eintragen (keine Kundendaten!).
+2. `python -m agent_system brand check` - validiert (Tippfehler, falsche
+   Typen, ungueltige Laendercodes, unbekannte Felder) und listet fehlende
+   Pflichtinformationen, auch je Agent.
+3. `python -m agent_system brand commit --note "..."` - gibt eine neue,
+   unveraenderliche Version frei (nur Owner, auditiert).
+
+**Versionierung:** Jede Freigabe erzeugt `versions/vNNNN.yaml` und einen
+Eintrag in `versions/index.json` mit SHA-256-Hash und Verkettung zur
+Vorversion. Veraenderte Versionsdateien oder eine gebrochene Kette werden
+beim Laden erkannt - die Agenten arbeiten dann nicht mit manipulierten Daten.
+`brand history`, `brand diff 1 2`, `brand show --version 1`.
+
+**Wie die Agenten zugreifen (Brand-Context-Loader):**
+- Agenten nutzen immer die **neueste freigegebene Version** - nie die
+  Arbeitskopie. v1 ist die leere Vorlage.
+- Pro Planung/Ausfuehrung wird genau **eine** Momentaufnahme geladen und
+  allen Agenten des Teams uebergeben (gleiche Version, gleicher Hash).
+- Jeder Agent bekommt nur seine relevanten Bereiche (`relevant_for` im
+  Schema) plus eine Liste "NICHT ANGEGEBEN (nicht erfinden)".
+- Auftrag und Audit-Log halten fest, mit welcher Brand-Version gearbeitet
+  wurde. Wird die Brand-Basis nach einer Auftragsfreigabe geaendert, braucht
+  der Auftrag eine erneute Freigabe.
+- QA setzt `no_gos.statements` durch (Ueberarbeitung/Stopp) und warnt bei
+  `brand_voice.words_to_avoid`. Legal nennt `legal_compliance.jurisdictions`
+  als Hinweis, uebernimmt sie aber nie automatisch fuer einen Auftrag.
+- Agenten koennen die Brand-Basis nicht aendern (`modify_brand_knowledge`
+  ist verboten, `commit` nur fuer den Owner, Daten nur als Kopie).
 
 ## Ersten Agenten produktiv machen (erst nach deiner Freigabe)
 
-1. Brand-Wissen eintragen.
+1. Brand Knowledge Base ausfuellen und freigeben (siehe oben).
 2. Freigabe fuer die Claude-API erteilen (kostenpflichtig). Erst dann:
    API-Key nur als Umgebungsvariable `ANTHROPIC_API_KEY`.
 3. `AnthropicLLMClient.complete()` in `core/llm.py` implementieren

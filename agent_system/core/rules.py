@@ -59,6 +59,8 @@ AGENT_FORBIDDEN_ACTIONS: frozenset[str] = frozenset({
     "override_legal_review",
     "set_legal_status",
     "modify_legal_knowledge",
+    # Die Brand Knowledge Base gehoert dem Owner
+    "modify_brand_knowledge",
 })
 
 #: Vorschlaege, die JEDER Agent machen darf (Empfehlung statt Handlung).

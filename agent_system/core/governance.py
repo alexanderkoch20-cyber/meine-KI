@@ -185,7 +185,8 @@ class OwnerApprovalGate:
 
     # -- Auftraege --------------------------------------------------------------
 
-    def approve_task(self, job: Job, actor: Actor, expected_plan: str | None = None) -> None:
+    def approve_task(self, job: Job, actor: Actor, expected_plan: str | None = None,
+                     brand_hash: str | None = None) -> None:
         from .jobs import transition  # zirkulaeren Import vermeiden
 
         self.require_owner(actor, "approve_task", job.id)
@@ -211,6 +212,7 @@ class OwnerApprovalGate:
                 "round": job.approval_round,
                 "plan_fingerprint": plan_fp,
                 "config_fingerprint": self.config.fingerprint,
+                "brand_hash": brand_hash,
                 "approved_by": actor.id,
                 "approved_at": utcnow(),
                 "steps": [s.id for s in job.plan.steps],
@@ -227,9 +229,10 @@ class OwnerApprovalGate:
         transition(job, TaskStatus.CANCELLED, actor, reason or "vom Owner abgebrochen")
         self.audit.record("task_cancelled", actor, job.id, reason=reason)
 
-    def assert_may_execute(self, job: Job) -> None:
+    def assert_may_execute(self, job: Job, brand_hash: str | None = None) -> None:
         """Letzte Kontrolle vor jeder Ausfuehrung. Nur APPROVED + gueltiger
-        Freigabe-Datensatz des Owners fuer genau diesen Plan & diese Konfiguration."""
+        Freigabe-Datensatz des Owners fuer genau diesen Plan, diese Konfiguration
+        und diese Version der Brand Knowledge Base."""
         from .jobs import transition
 
         def deny(reason: str) -> None:
@@ -250,6 +253,10 @@ class OwnerApprovalGate:
             transition(job, TaskStatus.WAITING_FOR_OWNER, SYSTEM,
                        "Konfiguration seit der Freigabe geaendert - erneute Freigabe noetig")
             deny("Konfiguration seit der Freigabe geaendert")
+        if record.get("brand_hash") and brand_hash and record["brand_hash"] != brand_hash:
+            transition(job, TaskStatus.WAITING_FOR_OWNER, SYSTEM,
+                       "Brand Knowledge Base seit der Freigabe geaendert - erneute Freigabe noetig")
+            deny("Brand Knowledge Base seit der Freigabe geaendert")
 
     # -- Aktionen ---------------------------------------------------------------
 

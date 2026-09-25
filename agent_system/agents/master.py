@@ -62,7 +62,7 @@ class MasterAgent(BaseAgent):
 
     def plan(self, job: Job) -> Plan:
         prompt = (
-            f"{self.ctx.brand.to_prompt_context()}\n\n"
+            f"{self.ctx.brand.to_prompt_context(self.id)}\n\n"
             f"## Auftrag des Nutzers\n{job.request}\n\n{PLAN_FORMAT}"
         )
         try:

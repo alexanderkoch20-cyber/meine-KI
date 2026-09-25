@@ -137,3 +137,6 @@ actions:
   modify_legal_knowledge:
     policy: deny
     description: Legal-Wissensbasis aendern (nur der Owner, per Datei)
+  modify_brand_knowledge:
+    policy: deny
+    description: Brand Knowledge Base aendern oder freigeben (nur der Owner)

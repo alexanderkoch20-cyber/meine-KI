@@ -59,7 +59,8 @@ def test_cli_agents_and_brand(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "claude-opus-5-5" in out and "claude-haiku" in out and "Owner: Alex" in out
     assert main(["--data-dir", str(tmp_path), "brand", "check"]) == 0
-    assert "Vollstaendigkeit: 0%" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Pflichtinformationen: 0% vollstaendig" in out and "brand_identity.brand_name" in out
 
 
 def test_cli_action_decisions_are_dry_run(tmp_path, capsys):
@@ -108,3 +109,48 @@ def test_cli_jurisdictions_command(tmp_path, capsys):
     assert "[Legal]" in capsys.readouterr().out
     assert main(d + ["jurisdictions", job_id, "DE", "AT"]) == 0
     assert "Rechtsraeume: DE, AT" in capsys.readouterr().out
+
+
+def test_cli_brand_workflow(tmp_path, capsys):
+    import shutil
+
+    import yaml
+
+    from agent_system.core.config import DEFAULT_BRAND_DIR
+
+    brand_dir = tmp_path / "brand"
+    brand_dir.mkdir()
+    for name in ("schema.yaml", "brand_knowledge.yaml", "ONBOARDING.md"):
+        shutil.copy(DEFAULT_BRAND_DIR / name, brand_dir / name)
+    d = ["--data-dir", str(tmp_path / "data"), "--brand-dir", str(brand_dir)]
+
+    # Arbeitskopie bearbeiten (fiktive Test-Angaben)
+    path = brand_dir / "brand_knowledge.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["brand_identity"]["brand_name"] = "CLI-Testmarke"
+    path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+
+    assert main(d + ["brand", "check", "--agent", "social"]) == 0
+    out = capsys.readouterr().out
+    assert "noch NICHT freigegeben" in out and "keine freigegebene Version" in out
+
+    assert main(d + ["brand", "commit"]) == 2                       # Notiz fehlt
+    capsys.readouterr()
+    assert main(d + ["brand", "commit", "--note", "Name eingetragen"]) == 0
+    assert "v1 freigegeben" in capsys.readouterr().out
+    assert main(d + ["brand", "show", "--agent", "social"]) == 0
+    assert "CLI-Testmarke" in capsys.readouterr().out
+
+    data["brand_voice"]["form_of_address"] = "du"
+    path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+    assert main(d + ["brand", "commit", "--note", "Anrede"]) == 0
+    capsys.readouterr()
+    assert main(d + ["brand", "diff", "1", "2"]) == 0
+    assert "brand_voice.form_of_address: NOT_PROVIDED -> du" in capsys.readouterr().out
+    assert main(d + ["brand", "history"]) == 0
+    out = capsys.readouterr().out
+    assert "Name eingetragen" in out and "Integritaet: OK" in out
+    assert main(d + ["audit"]) == 0
+    assert "brand_version_committed" in capsys.readouterr().out
+    assert main(d + ["brand", "onboarding"]) == 0
+    assert "Onboarding fuer den Owner" in capsys.readouterr().out

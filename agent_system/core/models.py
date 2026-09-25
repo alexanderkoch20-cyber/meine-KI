@@ -482,6 +482,9 @@ class Job:
     jurisdictions: list[str] = field(default_factory=list)
     #: Legal-Vorpruefung des Auftrags (vor der Owner-Freigabe).
     legal_precheck: LegalReview | None = None
+    #: Brand-Basis, mit der geplant bzw. zuletzt gearbeitet wurde (Version + Hash).
+    brand_version: int | None = None
+    brand_hash: str | None = None
     #: ID des Auftrags, aus dem dieser (per Owner-Entscheidung) neu erstellt wurde.
     resubmitted_from: str | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)

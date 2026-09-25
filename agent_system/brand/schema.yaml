@@ -1,0 +1,449 @@
+# ===========================================================================
+# SCHEMA der Brand Knowledge Base (Version 2)
+# ===========================================================================
+# Aus diesem Schema werden abgeleitet:
+#   - die Validierung von brand_knowledge.yaml       (core/brand_schema.py)
+#   - der Brand-Check (fehlende Pflichtinformationen) (core/brand.py)
+#   - der Brand-Kontext je Agent                      (core/brand.py)
+#   - die Onboarding-Datei ONBOARDING.md              (core/brand_onboarding.py)
+#
+# Feldtypen:
+#   text          Freitext
+#   text_list     Liste von Freitexten
+#   object_list   Liste von Objekten (Felder siehe "item_fields")
+#   enum          genau ein Wert aus "options"
+#   country_list  Liste von Rechtsraum-/Laendercodes (z.B. DE, AT, CH, EU, UK, US)
+#
+# Jeder Wert darf statt eines Inhalts einer dieser Platzhalter sein:
+#   NOT_PROVIDED    noch nicht beantwortet (Standard - nichts wird erfunden)
+#   UNKNOWN         der Owner weiss es (noch) nicht
+#   NOT_APPLICABLE  trifft auf die Brand nicht zu (nur wo "allow_na" nicht false ist)
+#
+# required: true  -> Pflichtinformation (Brand-Check meldet sie, solange sie fehlt)
+# relevant_for    -> Agenten, die diesen Bereich im Kontext bekommen ("all" = alle)
+# ===========================================================================
+
+schema_version: 2
+
+sections:
+  brand_identity:
+    title: Brand Identity
+    intro: Wer ist die Marke, woher kommt sie, wofuer steht sie?
+    relevant_for: [all]
+    fields:
+      brand_name:
+        type: text
+        required: true
+        allow_na: false
+        label: Brandname
+        question: Wie lautet der offizielle Name deiner Brand (genaue Schreibweise)?
+      owner:
+        type: text
+        required: true
+        allow_na: false
+        label: Owner
+        question: Wer ist Owner der Brand (Person oder Firma, so wie sie genannt werden soll)?
+      founders:
+        type: text_list
+        label: Gruender
+        question: Wer hat die Brand gegruendet (falls abweichend vom Owner)?
+      history:
+        type: text
+        label: Geschichte
+        question: Wie ist die Brand entstanden? Welche Meilensteine gab es?
+      mission:
+        type: text
+        required: true
+        allow_na: false
+        label: Mission
+        question: Was ist die Mission der Brand - welches Problem loest sie fuer wen?
+      vision:
+        type: text
+        label: Vision
+        question: Wo soll die Brand in 5-10 Jahren stehen?
+      values:
+        type: text_list
+        required: true
+        allow_na: false
+        label: Werte
+        question: Welche 3-6 Werte leiten die Brand? (je Wert gern ein Satz, was er konkret bedeutet)
+      long_term_goals:
+        type: text_list
+        label: Langfristige Ziele
+        question: Welche langfristigen Ziele verfolgt die Brand?
+
+  offer:
+    title: Angebot
+    intro: Was verkauft bzw. bietet die Brand an?
+    relevant_for: [master, marketing, social, video, creative, research, legal, qa]
+    required_any: [products, services]
+    fields:
+      products:
+        type: object_list
+        label: Produkte
+        question: Welche Produkte bietet die Brand an? (je Produkt Name, Beschreibung, Preis, USP, Status, Maerkte)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          description: {type: text, label: Produktbeschreibung}
+          price: {type: text, label: Preis (inkl. Waehrung, falls relevant)}
+          usp: {type: text, label: USP}
+          status: {type: enum, options: [current, planned, discontinued], label: Status}
+          markets: {type: country_list, label: Maerkte}
+      services:
+        type: object_list
+        label: Dienstleistungen
+        question: Welche Dienstleistungen bietet die Brand an? (je Leistung Name, Beschreibung, Preis, USP, Status, Maerkte)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          description: {type: text, label: Beschreibung}
+          price: {type: text, label: Preis (inkl. Waehrung, falls relevant)}
+          usp: {type: text, label: USP}
+          status: {type: enum, options: [current, planned, discontinued], label: Status}
+          markets: {type: country_list, label: Maerkte}
+      pricing_notes:
+        type: text
+        label: Preis-Hinweise
+        question: Gibt es Regeln zur Kommunikation von Preisen (z.B. nie Rabatte, immer Bruttopreise)?
+      usps:
+        type: text_list
+        required: true
+        label: USPs
+        question: Was unterscheidet das Angebot konkret von Alternativen (Unique Selling Points)?
+      current_offers:
+        type: object_list
+        label: Aktuelle Angebote/Aktionen
+        question: Welche Angebote oder Aktionen laufen aktuell?
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          description: {type: text, label: Beschreibung}
+          period: {type: text, label: Zeitraum}
+          markets: {type: country_list, label: Maerkte}
+      planned_offers:
+        type: object_list
+        label: Geplante Angebote
+        question: Welche Angebote oder Produkte sind geplant?
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          description: {type: text, label: Beschreibung}
+          planned_for: {type: text, label: Geplant fuer}
+          markets: {type: country_list, label: Maerkte}
+
+  target_audiences:
+    title: Zielgruppen
+    intro: Fuer wen ist die Brand da - und was bewegt diese Menschen?
+    relevant_for: [master, marketing, social, video, creative, research, legal]
+    fields:
+      primary_audiences:
+        type: object_list
+        required: true
+        allow_na: false
+        label: Hauptzielgruppen
+        question: Wer sind deine Hauptzielgruppen? (je Gruppe Beschreibung, Beduerfnisse, Probleme, Wuensche, Kaufmotive, Maerkte)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          description: {type: text, label: Beschreibung}
+          needs: {type: text_list, label: Beduerfnisse}
+          problems: {type: text_list, label: Probleme}
+          desires: {type: text_list, label: Wuensche}
+          buying_motives: {type: text_list, label: Kaufmotive}
+          markets: {type: country_list, label: Maerkte}
+      secondary_audiences:
+        type: object_list
+        label: Weitere Zielgruppen
+        question: Gibt es weitere Zielgruppen? (gleiche Angaben wie oben)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          description: {type: text, label: Beschreibung}
+          needs: {type: text_list, label: Beduerfnisse}
+          problems: {type: text_list, label: Probleme}
+          desires: {type: text_list, label: Wuensche}
+          buying_motives: {type: text_list, label: Kaufmotive}
+          markets: {type: country_list, label: Maerkte}
+      markets:
+        type: country_list
+        required: true
+        allow_na: false
+        label: Relevante Maerkte/Laender
+        question: In welchen Laendern/Maerkten ist die Brand aktiv oder will aktiv werden? (Codes wie DE, AT, CH, EU, UK, US)
+
+  positioning:
+    title: Positionierung
+    intro: Wo steht die Brand im Markt und wie soll sie wahrgenommen werden?
+    relevant_for: [master, marketing, social, video, creative, research]
+    fields:
+      market_position:
+        type: text
+        required: true
+        allow_na: false
+        label: Marktpositionierung
+        question: Wie wuerdest du die Position der Brand im Markt in 1-3 Saetzen beschreiben (z.B. Premium, Preis-Leistung, Nische)?
+      differentiation:
+        type: text_list
+        required: true
+        label: Differenzierung
+        question: Worin unterscheidet sich die Brand klar von Wettbewerbern?
+      competitive_landscape:
+        type: text
+        label: Wettbewerbsumfeld
+        question: Wie sieht das Wettbewerbsumfeld aus (Marktgroesse, Art der Anbieter, Dynamik)?
+      competitors:
+        type: object_list
+        label: Wettbewerber
+        question: Welche konkreten Wettbewerber kennst du? (Name, Website, Staerken, Schwaechen)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          website: {type: text, label: Website}
+          strengths: {type: text_list, label: Staerken}
+          weaknesses: {type: text_list, label: Schwaechen}
+          notes: {type: text, label: Notizen}
+      desired_perception:
+        type: text
+        required: true
+        allow_na: false
+        label: Gewuenschte Wahrnehmung
+        question: Was sollen Menschen denken oder fuehlen, wenn sie die Brand sehen?
+
+  brand_voice:
+    title: Brand Voice
+    intro: Wie spricht und schreibt die Brand?
+    relevant_for: [master, marketing, social, video, creative, routine, qa]
+    fields:
+      tonality:
+        type: text
+        required: true
+        allow_na: false
+        label: Tonalitaet
+        question: Wie klingt die Brand (z.B. warm, direkt, humorvoll, sachlich)?
+      writing_style:
+        type: text
+        required: true
+        allow_na: false
+        label: Schreibstil
+        question: Wie soll geschrieben werden (Satzlaenge, Emojis ja/nein, Fachbegriffe, Struktur)?
+      form_of_address:
+        type: enum
+        options: [du, Sie, situationsabhaengig]
+        required: true
+        allow_na: false
+        label: Anrede
+        question: Wie spricht die Brand ihre Zielgruppe an - du, Sie oder situationsabhaengig?
+      languages:
+        type: text_list
+        label: Sprachen
+        question: In welchen Sprachen kommuniziert die Brand?
+      words_to_use:
+        type: text_list
+        label: Gewuenschte Woerter/Phrasen
+        question: Welche Woerter oder Phrasen gehoeren typischerweise zur Brand?
+      words_to_avoid:
+        type: text_list
+        label: Zu vermeidende Woerter/Phrasen
+        question: Welche Woerter oder Phrasen sollen vermieden werden? (Die QA markiert sie als Warnung.)
+      good_examples:
+        type: object_list
+        label: Beispiele guter Brand-Kommunikation
+        question: Hast du Beispiele fuer Texte, die genau nach deiner Brand klingen? (Kontext, Text, warum gut)
+        item_fields:
+          context: {type: text, label: Kontext}
+          text: {type: text, required: true, label: Text}
+          why_good: {type: text, label: Warum gut}
+      bad_examples:
+        type: object_list
+        label: Negativbeispiele
+        question: Hast du Beispiele, wie die Brand NICHT klingen soll? (Kontext, Text, warum schlecht)
+        item_fields:
+          context: {type: text, label: Kontext}
+          text: {type: text, required: true, label: Text}
+          why_bad: {type: text, label: Warum schlecht}
+
+  visual_identity:
+    title: Visuelle Identitaet
+    intro: Wie sieht die Brand aus?
+    relevant_for: [creative, video, social, marketing]
+    fields:
+      colors:
+        type: object_list
+        required: true
+        allow_na: false
+        label: Farben
+        question: Welche Markenfarben gibt es? (Name, Farbcode z.B. als HEX, Verwendung)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          value: {type: text, label: Farbcode}
+          usage: {type: text, label: Verwendung}
+      fonts:
+        type: object_list
+        label: Schriften
+        question: Welche Schriften werden verwendet? (Name, Verwendung, Lizenz)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          usage: {type: text, label: Verwendung}
+          license: {type: text, label: Lizenz}
+      logo_rules:
+        type: text_list
+        label: Logo-Regeln
+        question: Welche Regeln gelten fuer das Logo (Schutzzone, Mindestgroesse, Varianten, Verbote)?
+      imagery_style:
+        type: text
+        label: Bildsprache
+        question: Wie sieht die Bildsprache aus (Motive, Licht, Farben, Stimmung, echte Menschen vs. Produkt)?
+      video_style:
+        type: text
+        label: Video-Stil
+        question: Wie sehen Videos der Brand aus (Tempo, Schnitt, Musik, Kamerafuehrung, Laenge)?
+      design_rules:
+        type: text_list
+        label: Designregeln
+        question: Welche weiteren Designregeln gelten (Layouts, Weissraum, Icons, Formen)?
+
+  content:
+    title: Content
+    intro: Welche Inhalte gibt es schon und wo wird kommuniziert?
+    relevant_for: [master, marketing, social, video, creative, research]
+    fields:
+      past_content:
+        type: object_list
+        label: Bisherige Inhalte
+        question: Welche Inhalte gab es bisher (Titel, Typ, Plattform, Link, Datum, was gut/schlecht lief)?
+        item_fields:
+          title: {type: text, required: true, label: Titel}
+          type: {type: text, label: Typ}
+          platform: {type: text, label: Plattform}
+          url: {type: text, label: Link}
+          date: {type: text, label: Datum}
+          notes: {type: text, label: Notizen/Performance}
+      preferred_formats:
+        type: text_list
+        label: Bevorzugte Content-Formate
+        question: Welche Formate bevorzugt die Brand (z.B. Reels, Karussells, Blogartikel, Newsletter)?
+      platforms:
+        type: object_list
+        required: true
+        label: Social-Media-Plattformen
+        question: Auf welchen Plattformen ist die Brand aktiv oder plant es? (Name, Handle, Ziel, Status)
+        item_fields:
+          name: {type: text, required: true, label: Plattform}
+          handle: {type: text, label: Handle/Profil}
+          goal: {type: text, label: Ziel}
+          status: {type: enum, options: [active, planned, inactive], label: Status}
+      content_pillars:
+        type: text_list
+        required: true
+        label: Content-Saeulen
+        question: Welche 3-5 Themen-Saeulen soll der Content abdecken?
+      campaigns:
+        type: object_list
+        label: Kampagnen
+        question: Welche Kampagnen gab es oder sind geplant? (Name, Ziel, Status, Zeitraum, Maerkte)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          goal: {type: text, label: Ziel}
+          status: {type: enum, options: [past, running, planned], label: Status}
+          period: {type: text, label: Zeitraum}
+          markets: {type: country_list, label: Maerkte}
+
+  no_gos:
+    title: No-Gos
+    intro: Was die Brand niemals sagt, zeigt oder tut. Die QA setzt "statements" automatisch durch.
+    relevant_for: [all]
+    fields:
+      statements:
+        type: text_list
+        required: true
+        label: Verbotene Aussagen/Woerter
+        question: Welche Aussagen, Woerter oder Versprechen darf die Brand NIE verwenden? (Die QA blockiert Ergebnisse damit.)
+      topics:
+        type: text_list
+        required: true
+        label: Verbotene Themen
+        question: Ueber welche Themen spricht die Brand nie (z.B. Politik, Religion, Konkurrenz)?
+      designs:
+        type: text_list
+        label: Verbotene Designs
+        question: Welche Designs, Stile, Motive oder Farben sind tabu?
+      marketing_methods:
+        type: text_list
+        label: Verbotene Marketingmethoden
+        question: Welche Marketingmethoden lehnt die Brand ab (z.B. Fake-Verknappung, Clickbait, Kaltakquise)?
+      actions:
+        type: text_list
+        label: Verbotene Aktionen
+        question: Welche Aktionen soll die Brand niemals durchfuehren?
+
+  legal_compliance:
+    title: Recht & Compliance
+    intro: Bekannte rechtliche Rahmenbedingungen. Das ist Wissen fuer die Agenten - keine Rechtsberatung.
+    relevant_for: [master, legal, qa, marketing, social]
+    fields:
+      jurisdictions:
+        type: country_list
+        required: true
+        allow_na: false
+        label: Laender/Jurisdiktionen
+        question: In welchen Rechtsraeumen ist die Brand rechtlich taetig (Sitz, Verkauf, Werbung)? (Codes wie DE, AT, CH, EU, UK, US)
+      known_requirements:
+        type: object_list
+        label: Bekannte rechtliche Vorgaben
+        question: Welche rechtlichen Vorgaben sind dir bekannt (z.B. Branchenregeln, Auflagen)? (Titel, Rechtsraum, Beschreibung, Quelle)
+        item_fields:
+          title: {type: text, required: true, label: Titel}
+          jurisdiction: {type: text, label: Rechtsraum}
+          description: {type: text, label: Beschreibung}
+          source: {type: text, label: Quelle}
+      privacy_requirements:
+        type: text_list
+        label: Besondere Datenschutzanforderungen
+        question: Gibt es besondere Datenschutzanforderungen (z.B. sensible Kundendaten, Auftragsverarbeiter, Loeschfristen)?
+      licenses:
+        type: object_list
+        label: Bekannte Lizenzen
+        question: Welche Lizenzen besitzt die Brand (Bilder, Musik, Fonts, Software)? (Asset, Lizenz, Lizenzgeber, Umfang, gueltig bis, Nachweis)
+        item_fields:
+          asset: {type: text, required: true, label: Asset}
+          license: {type: text, label: Lizenz}
+          licensor: {type: text, label: Lizenzgeber}
+          scope: {type: text, label: Umfang}
+          valid_until: {type: text, label: Gueltig bis}
+          proof_location: {type: text, label: Ablageort des Nachweises}
+      trademarks_copyrights:
+        type: object_list
+        label: Marken-/Urheberrechte
+        question: Welche Marken, Urheberrechte oder Domains gehoeren der Brand bzw. sind zu beachten? (Name, Art, Inhaber, Registrierung, Rechtsraeume)
+        item_fields:
+          name: {type: text, required: true, label: Name}
+          kind: {type: enum, options: [trademark, copyright, design, domain, other], label: Art}
+          owner: {type: text, label: Inhaber}
+          registration: {type: text, label: Registrierung}
+          jurisdictions: {type: country_list, label: Rechtsraeume}
+          notes: {type: text, label: Notizen}
+
+  strategic_goals:
+    title: Strategische Ziele
+    intro: Wohin will die Brand - kurz-, mittel- und langfristig?
+    relevant_for: [master, marketing, social, research]
+    fields:
+      short_term:
+        type: object_list
+        required: true
+        label: Kurzfristig (bis 12 Monate)
+        question: Welche Ziele gelten fuer die naechsten 12 Monate? (Ziel, Messgroesse, Zieldatum)
+        item_fields:
+          goal: {type: text, required: true, label: Ziel}
+          metric: {type: text, label: Messgroesse}
+          target_date: {type: text, label: Zieldatum}
+      mid_term:
+        type: object_list
+        label: Mittelfristig (1-3 Jahre)
+        question: Welche Ziele gelten fuer 1-3 Jahre?
+        item_fields:
+          goal: {type: text, required: true, label: Ziel}
+          metric: {type: text, label: Messgroesse}
+          target_date: {type: text, label: Zieldatum}
+      long_term:
+        type: object_list
+        label: Langfristig (3+ Jahre)
+        question: Welche Ziele gelten langfristig (3+ Jahre)?
+        item_fields:
+          goal: {type: text, required: true, label: Ziel}
+          metric: {type: text, label: Messgroesse}
+          target_date: {type: text, label: Zieldatum}

@@ -43,6 +43,12 @@ class LegalAgent(BaseAgent):
         text = "\n".join([job.request, *job.owner_notes])
         review = evaluate(self.ctx.config.legal, scope="task", subject_id=job.id, text=text,
                           jurisdictions=list(job.jurisdictions))
+        brand_codes = self.ctx.brand.jurisdictions
+        if review.questions and brand_codes:
+            # Hinweis, KEINE Uebernahme: Der Auftrag kann auch nur einen Teil der Maerkte betreffen.
+            review.questions = [q + f" Hinweis: Laut Brand Knowledge Base ist die Brand in {', '.join(brand_codes)} "
+                                    "taetig - bitte fuer DIESEN Auftrag bestaetigen (wird nicht automatisch "
+                                    "uebernommen)." for q in review.questions]
         self._model_review(review, f"## Auftrag des Owners\n{text}")
         return review
 

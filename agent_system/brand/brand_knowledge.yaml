@@ -1,66 +1,198 @@
 # ===========================================================================
-# BRAND-KNOWLEDGE - die zentrale Wissensbasis fuer ALLE Agenten
+# BRAND KNOWLEDGE BASE - Arbeitskopie (hier traegt der Owner ein)
 # ===========================================================================
-# Hier traegst du deine Marken-Informationen ein. Jeder Agent bekommt diese
-# Informationen automatisch als Kontext. Die QA prueft Ergebnisse gegen
-# "no_go_rules" und "tonality".
-#
-# Pruefen, was noch fehlt:   python -m agent_system brand check
-# Leere Felder sind erlaubt - die Agenten arbeiten dann allgemeiner und
-# die QA gibt einen Hinweis aus.
+# WICHTIG
+# - Es sind KEINE Informationen vorausgefuellt oder erfunden. Jedes Feld steht
+#   auf NOT_PROVIDED, bis du es beantwortest.
+# - Platzhalter:  NOT_PROVIDED = noch nicht beantwortet
+#                 UNKNOWN      = weiss ich (noch) nicht
+#                 NOT_APPLICABLE = trifft nicht zu (nicht ueberall erlaubt)
+# - Fragen & Formate: agent_system/brand/ONBOARDING.md
+# - Pruefen:      python -m agent_system brand check
+# - Freigeben:    python -m agent_system brand commit --note "Was wurde geaendert"
+#   Agenten nutzen IMMER die zuletzt freigegebene Version - Aenderungen in
+#   dieser Datei wirken erst nach dem Commit.
+# - Keine Kundendaten eintragen (keine Namen/E-Mail-Adressen einzelner Personen).
 # ===========================================================================
 
-brand_name: ""            # z.B. "Muster GmbH"
-mission: ""               # 1-3 Saetze: Wofuer steht die Marke?
+meta:
+  schema_version: 2
 
-products: []
-#  - name: ""
-#    description: ""
-#    price: ""
-#    usp: ""
+# ---------------------------------------------------------------------------
+# 1. BRAND IDENTITY - Wer ist die Marke, woher kommt sie, wofuer steht sie?
+# ---------------------------------------------------------------------------
+brand_identity:
+  # Wie lautet der offizielle Name deiner Brand (genaue Schreibweise)? [PFLICHT]
+  brand_name: NOT_PROVIDED
+  # Wer ist Owner der Brand (Person oder Firma, so wie sie genannt werden soll)? [PFLICHT]
+  owner: NOT_PROVIDED
+  # Wer hat die Brand gegruendet (falls abweichend vom Owner)?
+  founders: NOT_PROVIDED
+  # Wie ist die Brand entstanden? Welche Meilensteine gab es?
+  history: NOT_PROVIDED
+  # Was ist die Mission der Brand - welches Problem loest sie fuer wen? [PFLICHT]
+  mission: NOT_PROVIDED
+  # Wo soll die Brand in 5-10 Jahren stehen?
+  vision: NOT_PROVIDED
+  # Welche 3-6 Werte leiten die Brand? (je Wert gern ein Satz, was er konkret bedeutet) [PFLICHT]
+  values: NOT_PROVIDED
+  # Welche langfristigen Ziele verfolgt die Brand?
+  long_term_goals: NOT_PROVIDED
 
-services: []
-#  - name: ""
-#    description: ""
+# ---------------------------------------------------------------------------
+# 2. ANGEBOT - Was verkauft bzw. bietet die Brand an?
+# ---------------------------------------------------------------------------
+offer:
+  # Welche Produkte bietet die Brand an? (je Produkt Name, Beschreibung, Preis, USP, Status, Maerkte)
+  # Je Eintrag: name*, description, price, usp, status, markets
+  products: NOT_PROVIDED
+  # Welche Dienstleistungen bietet die Brand an? (je Leistung Name, Beschreibung, Preis, USP, Status, Maerkte)
+  # Je Eintrag: name*, description, price, usp, status, markets
+  services: NOT_PROVIDED
+  # Gibt es Regeln zur Kommunikation von Preisen (z.B. nie Rabatte, immer Bruttopreise)?
+  pricing_notes: NOT_PROVIDED
+  # Was unterscheidet das Angebot konkret von Alternativen (Unique Selling Points)? [PFLICHT]
+  usps: NOT_PROVIDED
+  # Welche Angebote oder Aktionen laufen aktuell?
+  # Je Eintrag: name*, description, period, markets
+  current_offers: NOT_PROVIDED
+  # Welche Angebote oder Produkte sind geplant?
+  # Je Eintrag: name*, description, planned_for, markets
+  planned_offers: NOT_PROVIDED
 
-target_audience:
-  primary: ""             # z.B. "Selbststaendige Fotografen, 25-45"
-  secondary: ""
-  pain_points: []         # Probleme der Zielgruppe
-  desires: []             # Wuensche/Ziele der Zielgruppe
+# ---------------------------------------------------------------------------
+# 3. ZIELGRUPPEN - Fuer wen ist die Brand da - und was bewegt diese Menschen?
+# ---------------------------------------------------------------------------
+target_audiences:
+  # Wer sind deine Hauptzielgruppen? (je Gruppe Beschreibung, Beduerfnisse, Probleme, Wuensche, Kaufmotive, Maerkte) [PFLICHT]
+  # Je Eintrag: name*, description, needs, problems, desires, buying_motives, markets
+  primary_audiences: NOT_PROVIDED
+  # Gibt es weitere Zielgruppen? (gleiche Angaben wie oben)
+  # Je Eintrag: name*, description, needs, problems, desires, buying_motives, markets
+  secondary_audiences: NOT_PROVIDED
+  # In welchen Laendern/Maerkten ist die Brand aktiv oder will aktiv werden? (Codes wie DE, AT, CH, EU, UK, US) [PFLICHT]
+  markets: NOT_PROVIDED
 
-positioning: ""           # Wie grenzt sich die Marke ab?
+# ---------------------------------------------------------------------------
+# 4. POSITIONIERUNG - Wo steht die Brand im Markt und wie soll sie wahrgenommen werden?
+# ---------------------------------------------------------------------------
+positioning:
+  # Wie wuerdest du die Position der Brand im Markt in 1-3 Saetzen beschreiben (z.B. Premium, Preis-Leistung, Nische)? [PFLICHT]
+  market_position: NOT_PROVIDED
+  # Worin unterscheidet sich die Brand klar von Wettbewerbern? [PFLICHT]
+  differentiation: NOT_PROVIDED
+  # Wie sieht das Wettbewerbsumfeld aus (Marktgroesse, Art der Anbieter, Dynamik)?
+  competitive_landscape: NOT_PROVIDED
+  # Welche konkreten Wettbewerber kennst du? (Name, Website, Staerken, Schwaechen)
+  # Je Eintrag: name*, website, strengths, weaknesses, notes
+  competitors: NOT_PROVIDED
+  # Was sollen Menschen denken oder fuehlen, wenn sie die Brand sehen? [PFLICHT]
+  desired_perception: NOT_PROVIDED
 
-tonality:
-  description: ""         # z.B. "freundlich, direkt, per Du, ohne Fachchinesisch"
-  address: ""             # "du" oder "Sie"
-  do: []                  # Formulierungen/Stilmittel, die gewuenscht sind
-  dont: []                # Stilmittel, die vermieden werden sollen
+# ---------------------------------------------------------------------------
+# 5. BRAND VOICE - Wie spricht und schreibt die Brand?
+# ---------------------------------------------------------------------------
+brand_voice:
+  # Wie klingt die Brand (z.B. warm, direkt, humorvoll, sachlich)? [PFLICHT]
+  tonality: NOT_PROVIDED
+  # Wie soll geschrieben werden (Satzlaenge, Emojis ja/nein, Fachbegriffe, Struktur)? [PFLICHT]
+  writing_style: NOT_PROVIDED
+  # Wie spricht die Brand ihre Zielgruppe an - du, Sie oder situationsabhaengig? [PFLICHT]
+  # Erlaubt: du | Sie | situationsabhaengig
+  form_of_address: NOT_PROVIDED
+  # In welchen Sprachen kommuniziert die Brand?
+  languages: NOT_PROVIDED
+  # Welche Woerter oder Phrasen gehoeren typischerweise zur Brand?
+  words_to_use: NOT_PROVIDED
+  # Welche Woerter oder Phrasen sollen vermieden werden? (Die QA markiert sie als Warnung.)
+  words_to_avoid: NOT_PROVIDED
+  # Hast du Beispiele fuer Texte, die genau nach deiner Brand klingen? (Kontext, Text, warum gut)
+  # Je Eintrag: context, text*, why_good
+  good_examples: NOT_PROVIDED
+  # Hast du Beispiele, wie die Brand NICHT klingen soll? (Kontext, Text, warum schlecht)
+  # Je Eintrag: context, text*, why_bad
+  bad_examples: NOT_PROVIDED
 
-brand_values: []          # z.B. ["Ehrlichkeit", "Qualitaet"]
+# ---------------------------------------------------------------------------
+# 6. VISUELLE IDENTITAET - Wie sieht die Brand aus?
+# ---------------------------------------------------------------------------
+visual_identity:
+  # Welche Markenfarben gibt es? (Name, Farbcode z.B. als HEX, Verwendung) [PFLICHT]
+  # Je Eintrag: name*, value, usage
+  colors: NOT_PROVIDED
+  # Welche Schriften werden verwendet? (Name, Verwendung, Lizenz)
+  # Je Eintrag: name*, usage, license
+  fonts: NOT_PROVIDED
+  # Welche Regeln gelten fuer das Logo (Schutzzone, Mindestgroesse, Varianten, Verbote)?
+  logo_rules: NOT_PROVIDED
+  # Wie sieht die Bildsprache aus (Motive, Licht, Farben, Stimmung, echte Menschen vs. Produkt)?
+  imagery_style: NOT_PROVIDED
+  # Wie sehen Videos der Brand aus (Tempo, Schnitt, Musik, Kamerafuehrung, Laenge)?
+  video_style: NOT_PROVIDED
+  # Welche weiteren Designregeln gelten (Layouts, Weissraum, Icons, Formen)?
+  design_rules: NOT_PROVIDED
 
-design_rules:
-  colors: []              # z.B. ["#1A1A1A", "#F2C94C"]
-  fonts: []
-  imagery: ""             # Bildsprache
-  logo_usage: ""
+# ---------------------------------------------------------------------------
+# 7. CONTENT - Welche Inhalte gibt es schon und wo wird kommuniziert?
+# ---------------------------------------------------------------------------
+content:
+  # Welche Inhalte gab es bisher (Titel, Typ, Plattform, Link, Datum, was gut/schlecht lief)?
+  # Je Eintrag: title*, type, platform, url, date, notes
+  past_content: NOT_PROVIDED
+  # Welche Formate bevorzugt die Brand (z.B. Reels, Karussells, Blogartikel, Newsletter)?
+  preferred_formats: NOT_PROVIDED
+  # Auf welchen Plattformen ist die Brand aktiv oder plant es? (Name, Handle, Ziel, Status) [PFLICHT]
+  # Je Eintrag: name*, handle, goal, status
+  platforms: NOT_PROVIDED
+  # Welche 3-5 Themen-Saeulen soll der Content abdecken? [PFLICHT]
+  content_pillars: NOT_PROVIDED
+  # Welche Kampagnen gab es oder sind geplant? (Name, Ziel, Status, Zeitraum, Maerkte)
+  # Je Eintrag: name*, goal, status, period, markets
+  campaigns: NOT_PROVIDED
 
-no_go_rules:
-  # Woerter/Phrasen, die NIE in Ergebnissen auftauchen duerfen.
-  # Die QA blockiert Ergebnisse, die diese enthalten (Gross-/Kleinschreibung egal).
-  forbidden_words: []
-  # Allgemeine Regeln in Textform (werden den Agenten mitgegeben).
-  rules: []
+# ---------------------------------------------------------------------------
+# 8. NO-GOS - Was die Brand niemals sagt, zeigt oder tut. Die QA setzt "statements" automatisch durch.
+# ---------------------------------------------------------------------------
+no_gos:
+  # Welche Aussagen, Woerter oder Versprechen darf die Brand NIE verwenden? (Die QA blockiert Ergebnisse damit.) [PFLICHT]
+  statements: NOT_PROVIDED
+  # Ueber welche Themen spricht die Brand nie (z.B. Politik, Religion, Konkurrenz)? [PFLICHT]
+  topics: NOT_PROVIDED
+  # Welche Designs, Stile, Motive oder Farben sind tabu?
+  designs: NOT_PROVIDED
+  # Welche Marketingmethoden lehnt die Brand ab (z.B. Fake-Verknappung, Clickbait, Kaltakquise)?
+  marketing_methods: NOT_PROVIDED
+  # Welche Aktionen soll die Brand niemals durchfuehren?
+  actions: NOT_PROVIDED
 
-goals: []                 # z.B. ["100 Leads/Monat bis Q2"]
+# ---------------------------------------------------------------------------
+# 9. RECHT & COMPLIANCE - Bekannte rechtliche Rahmenbedingungen. Das ist Wissen fuer die Agenten - keine Rechtsberatung.
+# ---------------------------------------------------------------------------
+legal_compliance:
+  # In welchen Rechtsraeumen ist die Brand rechtlich taetig (Sitz, Verkauf, Werbung)? (Codes wie DE, AT, CH, EU, UK, US) [PFLICHT]
+  jurisdictions: NOT_PROVIDED
+  # Welche rechtlichen Vorgaben sind dir bekannt (z.B. Branchenregeln, Auflagen)? (Titel, Rechtsraum, Beschreibung, Quelle)
+  # Je Eintrag: title*, jurisdiction, description, source
+  known_requirements: NOT_PROVIDED
+  # Gibt es besondere Datenschutzanforderungen (z.B. sensible Kundendaten, Auftragsverarbeiter, Loeschfristen)?
+  privacy_requirements: NOT_PROVIDED
+  # Welche Lizenzen besitzt die Brand (Bilder, Musik, Fonts, Software)? (Asset, Lizenz, Lizenzgeber, Umfang, gueltig bis, Nachweis)
+  # Je Eintrag: asset*, license, licensor, scope, valid_until, proof_location
+  licenses: NOT_PROVIDED
+  # Welche Marken, Urheberrechte oder Domains gehoeren der Brand bzw. sind zu beachten? (Name, Art, Inhaber, Registrierung, Rechtsraeume)
+  # Je Eintrag: name*, kind, owner, registration, jurisdictions, notes
+  trademarks_copyrights: NOT_PROVIDED
 
-competitors: []
-#  - name: ""
-#    website: ""
-#    notes: ""
-
-existing_content: []
-#  - title: ""
-#    type: ""     # post, video, blog, ...
-#    url: ""
-#    notes: ""
+# ---------------------------------------------------------------------------
+# 10. STRATEGISCHE ZIELE - Wohin will die Brand - kurz-, mittel- und langfristig?
+# ---------------------------------------------------------------------------
+strategic_goals:
+  # Welche Ziele gelten fuer die naechsten 12 Monate? (Ziel, Messgroesse, Zieldatum) [PFLICHT]
+  # Je Eintrag: goal*, metric, target_date
+  short_term: NOT_PROVIDED
+  # Welche Ziele gelten fuer 1-3 Jahre?
+  # Je Eintrag: goal*, metric, target_date
+  mid_term: NOT_PROVIDED
+  # Welche Ziele gelten langfristig (3+ Jahre)?
+  # Je Eintrag: goal*, metric, target_date
+  long_term: NOT_PROVIDED

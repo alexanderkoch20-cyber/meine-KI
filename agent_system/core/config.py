@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_DIR = PACKAGE_DIR / "config"
 DEFAULT_PROMPTS_DIR = PACKAGE_DIR / "prompts"
-DEFAULT_BRAND_FILE = PACKAGE_DIR / "brand" / "brand_knowledge.yaml"
+DEFAULT_BRAND_DIR = PACKAGE_DIR / "brand"
 
 VALID_ROLES = {"master", "specialist", "qa", "legal"}
 VALID_POLICIES = {"allow", "require_approval", "deny"}
@@ -83,7 +83,7 @@ class SystemConfig:
     #: SHA-256 ueber alle Konfigurations- und Prompt-Dateien.
     fingerprint: str = ""
     prompts_dir: Path = DEFAULT_PROMPTS_DIR
-    brand_file: Path = DEFAULT_BRAND_FILE
+    brand_dir: Path = DEFAULT_BRAND_DIR
     extra: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     # -- Helfer --------------------------------------------------------------
@@ -171,7 +171,7 @@ def _load_governance(raw: dict[str, Any]) -> GovernanceSettings:
 def load_config(
     config_dir: Path | str | None = None,
     prompts_dir: Path | str | None = None,
-    brand_file: Path | str | None = None,
+    brand_dir: Path | str | None = None,
 ) -> SystemConfig:
     config_dir = Path(config_dir) if config_dir else DEFAULT_CONFIG_DIR
     prompts_dir = Path(prompts_dir) if prompts_dir else DEFAULT_PROMPTS_DIR
@@ -274,5 +274,5 @@ def load_config(
         inactive_agents=tuple(inactive),
         fingerprint=compute_fingerprint(config_dir, prompts_dir),
         prompts_dir=prompts_dir,
-        brand_file=Path(brand_file) if brand_file else DEFAULT_BRAND_FILE,
+        brand_dir=Path(brand_dir) if brand_dir else DEFAULT_BRAND_DIR,
     )
