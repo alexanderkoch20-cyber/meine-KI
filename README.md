@@ -8,6 +8,9 @@ Ken-Burns-Zoom, Vertigo-Effekt ...), waehrend Farbgrading, Vignette,
 Filmkorn, Bloom, chromatische Aberration und Kino-Letterbox das Bild wie aus
 einem echten Film aussehen lassen.
 
+> **Neu: KI-Agentensystem** - Master-Agent, sieben Spezial-Agenten und QA mit
+> Berechtigungs- und Freigabesystem. Siehe [`agent_system/README.md`](agent_system/README.md).
+
 ## Wie es funktioniert
 
 1. **Tiefenschaetzung** (`app/core/depth.py`) - eine schnelle, komplett

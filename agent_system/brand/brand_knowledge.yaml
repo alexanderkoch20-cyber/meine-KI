@@ -1,0 +1,66 @@
+# ===========================================================================
+# BRAND-KNOWLEDGE - die zentrale Wissensbasis fuer ALLE Agenten
+# ===========================================================================
+# Hier traegst du deine Marken-Informationen ein. Jeder Agent bekommt diese
+# Informationen automatisch als Kontext. Die QA prueft Ergebnisse gegen
+# "no_go_rules" und "tonality".
+#
+# Pruefen, was noch fehlt:   python -m agent_system brand check
+# Leere Felder sind erlaubt - die Agenten arbeiten dann allgemeiner und
+# die QA gibt einen Hinweis aus.
+# ===========================================================================
+
+brand_name: ""            # z.B. "Muster GmbH"
+mission: ""               # 1-3 Saetze: Wofuer steht die Marke?
+
+products: []
+#  - name: ""
+#    description: ""
+#    price: ""
+#    usp: ""
+
+services: []
+#  - name: ""
+#    description: ""
+
+target_audience:
+  primary: ""             # z.B. "Selbststaendige Fotografen, 25-45"
+  secondary: ""
+  pain_points: []         # Probleme der Zielgruppe
+  desires: []             # Wuensche/Ziele der Zielgruppe
+
+positioning: ""           # Wie grenzt sich die Marke ab?
+
+tonality:
+  description: ""         # z.B. "freundlich, direkt, per Du, ohne Fachchinesisch"
+  address: ""             # "du" oder "Sie"
+  do: []                  # Formulierungen/Stilmittel, die gewuenscht sind
+  dont: []                # Stilmittel, die vermieden werden sollen
+
+brand_values: []          # z.B. ["Ehrlichkeit", "Qualitaet"]
+
+design_rules:
+  colors: []              # z.B. ["#1A1A1A", "#F2C94C"]
+  fonts: []
+  imagery: ""             # Bildsprache
+  logo_usage: ""
+
+no_go_rules:
+  # Woerter/Phrasen, die NIE in Ergebnissen auftauchen duerfen.
+  # Die QA blockiert Ergebnisse, die diese enthalten (Gross-/Kleinschreibung egal).
+  forbidden_words: []
+  # Allgemeine Regeln in Textform (werden den Agenten mitgegeben).
+  rules: []
+
+goals: []                 # z.B. ["100 Leads/Monat bis Q2"]
+
+competitors: []
+#  - name: ""
+#    website: ""
+#    notes: ""
+
+existing_content: []
+#  - title: ""
+#    type: ""     # post, video, blog, ...
+#    url: ""
+#    notes: ""

@@ -1,0 +1,58 @@
+# Berechtigungssystem.
+#
+# Jede Aktion mit moeglicher Wirkung ausserhalb des Systems hat eine Policy:
+#   allow            = darf ohne Rueckfrage (nur interne, folgenlose Aktionen)
+#   require_approval = nur nach ausdruecklicher Freigabe durch den Nutzer
+#   deny             = grundsaetzlich verboten (auch mit Freigabe nicht)
+#
+# Unbekannte Aktionen werden IMMER wie "require_approval" behandelt
+# (sicherer Default).
+#
+# Wichtig: Selbst nach Freigabe wird in dieser Ausbaustufe nichts real
+# ausgefuehrt - es gibt noch keine Executor fuer externe Aktionen
+# (Dry-Run). Die Freigabe wird nur protokolliert.
+
+default_policy: require_approval
+
+actions:
+  # --- interne, folgenlose Aktionen -------------------------------------
+  create_draft:
+    policy: allow
+    description: Entwurf (Text, Konzept, Plan) intern erstellen
+  save_internal_note:
+    policy: allow
+    description: Interne Notiz / Zwischenergebnis speichern
+  read_brand_knowledge:
+    policy: allow
+    description: Brand-Wissen lesen
+
+  # --- externe Wirkung: nur mit Freigabe ---------------------------------
+  spend_money:
+    policy: require_approval
+    description: Geld ausgeben (Werbebudget, Kaeufe, kostenpflichtige APIs)
+  publish_content:
+    policy: require_approval
+    description: Inhalte veroeffentlichen (Social Media, Website, Ads)
+  send_customer_message:
+    policy: require_approval
+    description: Nachrichten/E-Mails an Kunden senden
+  delete_account:
+    policy: require_approval
+    description: Accounts loeschen
+  delete_file_permanently:
+    policy: require_approval
+    description: Dateien endgueltig loeschen
+  sign_contract:
+    policy: require_approval
+    description: Vertraege abschliessen
+  call_external_api:
+    policy: require_approval
+    description: Externen oder kostenpflichtigen Dienst aufrufen
+  generate_video:
+    policy: require_approval
+    description: Video ueber die Bild-zu-Video-KI rendern lassen
+
+  # --- grundsaetzlich verboten -------------------------------------------
+  reveal_secret:
+    policy: deny
+    description: API-Schluessel oder Passwoerter ausgeben/anzeigen

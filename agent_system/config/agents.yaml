@@ -1,0 +1,156 @@
+# Agenten-Definitionen.
+#
+# Felder:
+#   name            Anzeigename
+#   role            master | specialist | qa
+#   model_tier      opus | sonnet | haiku (siehe models.yaml)
+#   prompt_file     System-Prompt in agent_system/prompts/
+#   responsibilities  Aufgabenbereich (wird auch vom Master fuers Routing genutzt)
+#   keywords        Stichworte fuer das regelbasierte Fallback-Routing.
+#                   Ganzes Wort, ausser mit '*' am Ende (dann Wortanfang,
+#                   z.B. 'kampagne*' trifft auch 'Kampagnen')
+#   allowed_actions Aktionen, die dieser Agent VORSCHLAGEN darf. Alles andere
+#                   wird von der QA abgelehnt (Least Privilege).
+
+agents:
+  master:
+    name: Master-Agent
+    role: master
+    model_tier: opus
+    prompt_file: master.md
+    responsibilities:
+      - Auftraege entgegennehmen und in Teilaufgaben zerlegen
+      - passende Spezial-Agenten auswaehlen und beauftragen
+      - Ergebnisse zusammenfuehren
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  marketing:
+    name: Marketing-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: marketing.md
+    responsibilities:
+      - Marketingstrategien
+      - Kampagnen
+      - Angebote
+      - Positionierung
+      - Werbekonzepte
+      - Conversion-orientierte Texte
+    keywords: [marketing*, strategie*, kampagne*, angebot*, positionierung, werbung,
+               werbekonzept*, conversion, landingpage*, ads, anzeige*, funnel, slogan*,
+               werbetext*, verkaufstext*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      spend_money, publish_content]
+
+  social:
+    name: Social-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: social.md
+    responsibilities:
+      - Content-Ideen
+      - Social-Media-Posts
+      - Reels-Konzepte
+      - Content-Kalender
+      - Plattform-spezifische Varianten
+    keywords: [social*, post, posts, instagram*, tiktok*, linkedin*, facebook*, reel,
+               reels, content-kalender, redaktionsplan*, caption*, hashtag*, story, stories]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      publish_content]
+
+  video:
+    name: Video-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: video.md
+    responsibilities:
+      - Video-Konzepte
+      - Storyboards
+      - Prompts fuer Video-KI
+      - Produktionsplanung
+      - spaeter Anbindung an die Bild-zu-Video-KI (CineMotion)
+    keywords: [video*, storyboard*, clip*, film*, dreh*, produktion*, animation*,
+               bild-zu-video, szene*, shot*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      generate_video]
+
+  creative:
+    name: Creative-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: creative.md
+    responsibilities:
+      - kreative Konzepte
+      - Bildideen
+      - Kampagnenvisuals
+      - Brand-Design-Richtlinien
+    keywords: [kreativ*, konzept*, bild, bilder, bildidee*, visual*, design*,
+               moodboard*, logo*, farbe*, look, styleguide*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  research:
+    name: Research-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: research.md
+    responsibilities:
+      - Markt-Recherche
+      - Wettbewerber-Recherche
+      - Trends
+      - Zielgruppeninformationen
+      - Quellenbasierte Zusammenfassungen
+    keywords: [recherch*, markt*, wettbewerb*, konkurren*, trend*, zielgruppe*,
+               analyse*, analysier*, quelle*, studie*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      call_external_api]
+
+  coding:
+    name: Coding-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: coding.md
+    responsibilities:
+      - Software entwickeln
+      - Fehler beheben
+      - Tests schreiben
+      - technische Infrastruktur
+    keywords: [code, coding, programmier*, software, bug, bugs, fehler beheben, test,
+               tests, api, skript*, script*, infrastruktur, deployment, website bauen]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  routine:
+    name: Routine-Agent
+    role: specialist
+    model_tier: haiku
+    prompt_file: routine.md
+    responsibilities:
+      - einfache, schnelle, wiederkehrende Aufgaben
+      - Datenformatierung
+      - Klassifizierung
+      - einfache Zusammenfassungen
+    keywords: [formatier*, klassifizier*, sortier*, liste, tabelle*,
+               zusammenfass*, fasse, umwandeln, konvertier*, csv, json]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  qa:
+    name: QA-Agent
+    role: qa
+    model_tier: sonnet
+    prompt_file: qa.md
+    responsibilities:
+      - Ergebnisse pruefen
+      - Fehler erkennen
+      - Brand-Regeln pruefen
+      - riskante Aktionen blockieren
+      - Freigabe verlangen, wenn eine Aktion externe Auswirkungen hat
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+orchestration:
+  # Agent fuer Auftraege, die keinem Spezialisten eindeutig zuzuordnen sind.
+  fallback_agent: marketing
+  # Wiederholungen bei technischen Fehlern (LLM-Timeout etc.) pro Schritt.
+  max_retries: 2
+  # Ueberarbeitungsrunden, wenn die QA "needs_revision" meldet.
+  max_revisions: 1
+  # Maximale Anzahl Teilaufgaben pro Auftrag.
+  max_steps: 8
