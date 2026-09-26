@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from ..core.errors import AgentSystemError, PlanningError
 from ..core.legal import format_review
-from ..core.models import Job, Plan, PlanStep, StepStatus
+from ..core.models import Job, Plan, PlanStep, StepStatus, TaskDraft
 from ..core.textmatch import keyword_matches, normalize
 from .base import BaseAgent, parse_json_object
 
@@ -28,6 +28,32 @@ from .base import BaseAgent, parse_json_object
 CANONICAL_ORDER = ["research", "marketing", "creative", "social", "video", "coding", "routine"]
 #: Ergebnisse dieser Agenten sind Grundlage fuer spaetere Schritte.
 FOUNDATION_AGENTS = {"research", "marketing", "creative"}
+
+#: Entscheidungen, die im Auftrag anklingen koennen, aber AUSSCHLIESSLICH der Owner trifft.
+#: Der Master markiert sie im Task-Draft - er trifft sie nie selbst.
+OWNER_DECISION_TOPICS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Preise festlegen oder aendern", ("preis*", "rabatt*", "streichpreis*")),
+    ("Produkte/Produktlinien freigeben oder beschliessen",
+     ("produkt*", "kollektion*", "produktlinie*", "launch*", "markteinfuehrung*", "first edition")),
+    ("Drops starten/beenden, Limitierung und Stueckzahlen festlegen",
+     ("drop*", "limitiert*", "limited", "stueckzahl*")),
+    ("Kampagnen freigeben oder starten", ("kampagne*",)),
+    ("Inhalte veroeffentlichen/posten",
+     ("veroeffentlich*", "post", "posts", "posten", "reel*", "instagram*", "tiktok*", "facebook*", "live")),
+    ("Werbebudget/Ausgaben freigeben", ("budget*", "werbebudget*", "ads", "anzeige*", "ausgabe*")),
+    ("Kunden kontaktieren", ("kunde*", "newsletter*", "e-mail*", "mailing*")),
+)
+
+#: Feste Grenzen jedes Task-Drafts (spiegeln die bestehende Governance - aendern sie nicht).
+DRAFT_CONSTRAINTS: tuple[str, ...] = (
+    "Ergebnis sind ausschliesslich interne Entwuerfe/Konzepte zur Pruefung durch den Owner.",
+    "Agenten veroeffentlichen, posten, kontaktieren keine Kunden, geben kein Geld aus und geben keine "
+    "Preise, Produkte, Drops oder Kampagnen frei.",
+    "Externe Aktionen nur als Vorschlag: Legal & Compliance, QA und Owner-Freigabe erforderlich "
+    "(derzeit Dry-Run, nichts wird ausgefuehrt).",
+    "Kein Start, keine Erweiterung und keine Wiederholung ohne ausdrueckliche Owner-Freigabe.",
+    "Nicht angegebene Brand-Informationen werden nicht erfunden.",
+)
 
 UNCLEAR_QUESTION = (
     "Ich kann den Auftrag keinem Spezial-Agenten eindeutig zuordnen. Was genau soll "
@@ -144,6 +170,58 @@ class MasterAgent(BaseAgent):
             steps=steps,
             rationale="Stichwort-Routing: " + ", ".join(f"{a}={scores[a]}" for a in chosen),
             source="rules",
+        )
+
+    # ------------------------------------------------------------ Task-Draft
+
+    def draft_task(self, job: Job) -> TaskDraft:
+        """Strukturierter Auftragsentwurf fuer den Owner - deterministisch, ohne Modell.
+
+        Der Draft startet nichts und gibt nichts frei; er macht sichtbar, was nach
+        einer Owner-Freigabe an welche Spezialagenten ginge und was nur der Owner entscheidet.
+        """
+        assert job.plan is not None
+        agents = self.ctx.config.agents
+        by_id = {s.id: s for s in job.plan.steps}
+        specialists = [{
+            "step_id": s.id,
+            "agent_id": s.agent_id,
+            "agent_name": agents[s.agent_id].name,
+            "model_tier": agents[s.agent_id].model_tier,
+            "instruction": s.instruction,
+            "depends_on": [by_id[d].agent_id for d in s.depends_on],
+        } for s in job.plan.steps]
+
+        text = normalize("\n".join([job.request, *job.owner_notes, *(s.instruction for s in job.plan.steps)]))
+        decisions = [f"{label} - entscheidet ausschliesslich der Owner"
+                     for label, keywords in OWNER_DECISION_TOPICS
+                     if any(keyword_matches(k, text) for k in keywords)]
+
+        brand = self.ctx.brand
+        constraints = list(DRAFT_CONSTRAINTS)
+        if brand.version:
+            constraints.append(f"Brand-Kontext: {brand.name or 'Brand'} Brand Knowledge Base {brand.info.label} "
+                               f"(Hash {brand.content_hash[:12]}) - nur lesend.")
+            constraints.append(f"Brand-No-Gos beachten ({len(brand.forbidden_phrases)} verbotene Aussagen und "
+                               "weitere Regeln laut Brand Knowledge Base).")
+        else:
+            constraints.append("Keine freigegebene Brand-Version - markenneutral arbeiten.")
+
+        names = ", ".join(sp["agent_name"] for sp in specialists) or "noch keine (Rueckfragen offen)"
+        return TaskDraft(
+            job_id=job.id,
+            owner_request=job.request,
+            objective=job.request,
+            specialists=specialists,
+            deliverable=f"Interne Entwuerfe zur Owner-Pruefung von: {names}. Keine Veroeffentlichung.",
+            brand_version=brand.version or None,
+            brand_hash=brand.content_hash if brand.version else None,
+            jurisdictions=list(job.jurisdictions),
+            legal_status=(job.legal_precheck.status.value if job.legal_precheck else "legal_review_required"),
+            constraints=constraints,
+            owner_decisions_required=decisions,
+            open_questions=list(job.open_questions),
+            plan_fingerprint=job.plan.fingerprint(),
         )
 
     # ------------------------------------------------------------ Bericht

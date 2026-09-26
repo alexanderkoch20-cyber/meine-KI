@@ -426,6 +426,42 @@ class Plan:
 
 
 @dataclass
+class TaskDraft:
+    """Strukturierter Auftragsentwurf des Master-Agenten fuer den Owner.
+
+    Der Draft beschreibt, WAS nach einer Owner-Freigabe an welchen Spezialagenten
+    gehen wuerde - er startet nichts und gibt nichts frei. Massgeblich fuer die
+    Ausfuehrung bleibt der Plan, dessen Fingerabdruck der Owner freigibt.
+    """
+
+    job_id: str
+    owner_request: str
+    objective: str
+    specialists: list[dict[str, Any]]
+    deliverable: str
+    brand_version: int | None
+    brand_hash: str | None
+    jurisdictions: list[str]
+    legal_status: str
+    constraints: list[str]
+    #: Entscheidungen, die im Auftrag anklingen und ausschliesslich der Owner trifft.
+    owner_decisions_required: list[str]
+    open_questions: list[str]
+    plan_fingerprint: str
+    requires_owner_approval: bool = True
+    created_by: str = "master"
+    created_at: str = field(default_factory=utcnow)
+    id: str = field(default_factory=lambda: new_id("draft"))
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "TaskDraft":
+        return cls(**d)
+
+
+@dataclass
 class ApprovalRequest:
     """Owner-Freigabe fuer eine einzelne vorgeschlagene AKTION."""
 
@@ -482,6 +518,8 @@ class Job:
     jurisdictions: list[str] = field(default_factory=list)
     #: Legal-Vorpruefung des Auftrags (vor der Owner-Freigabe).
     legal_precheck: LegalReview | None = None
+    #: Strukturierter Auftragsentwurf des Masters (fuer die Owner-Entscheidung).
+    task_draft: TaskDraft | None = None
     #: Brand-Basis, mit der geplant bzw. zuletzt gearbeitet wurde (Version + Hash).
     brand_version: int | None = None
     brand_hash: str | None = None
@@ -511,6 +549,7 @@ class Job:
         d["status"] = self.status.value
         d["plan"] = self.plan.to_dict() if self.plan else None
         d["legal_precheck"] = self.legal_precheck.to_dict() if self.legal_precheck else None
+        d["task_draft"] = self.task_draft.to_dict() if self.task_draft else None
         d["legal_status"] = self.legal_status.value
         for key in ("open_questions", "owner_notes", "recommendations", "approvals", "trace", "history",
                     "jurisdictions"):
@@ -523,4 +562,5 @@ class Job:
         d["status"] = TaskStatus(d["status"])
         d["plan"] = Plan.from_dict(d["plan"]) if d.get("plan") else None
         d["legal_precheck"] = LegalReview.from_dict(d["legal_precheck"]) if d.get("legal_precheck") else None
+        d["task_draft"] = TaskDraft.from_dict(d["task_draft"]) if d.get("task_draft") else None
         return cls(**d)

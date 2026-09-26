@@ -61,6 +61,20 @@ def _print_job(orch: Orchestrator, job: Job, full: bool = False) -> None:
         for i, s in enumerate(job.plan.steps, 1):
             verdict = f" QA={s.qa_report.verdict.value}" if s.qa_report else ""
             _print(f"   {i}. [{s.status.value}] {s.agent_id}: {s.instruction}{verdict}")
+    draft = job.task_draft
+    if draft and job.status.value in ("draft", "waiting_for_owner", "approved"):
+        _print(f"  TASK-DRAFT {draft.id} (vom Master, wartet auf Owner-Freigabe):")
+        _print(f"    Ziel: {draft.objective}")
+        for sp in draft.specialists:
+            after = f" (nach: {', '.join(sp['depends_on'])})" if sp["depends_on"] else ""
+            _print(f"    -> {sp['agent_name']} [{sp['model_tier']}]{after}")
+        _print(f"    Ergebnis: {draft.deliverable}")
+        _print(f"    Brand: {'v' + str(draft.brand_version) if draft.brand_version else 'keine freigegebene Version'}"
+               f" | Legal: {draft.legal_status}")
+        for d in draft.owner_decisions_required:
+            _print(f"    OWNER-ENTSCHEIDUNG: {d}")
+        for c in draft.constraints:
+            _print(f"    Grenze: {c}")
     _print(f"  Rechtsraeume: {', '.join(job.jurisdictions) or 'unbekannt (es wird keiner angenommen)'}")
     _print(f"  Legal & Compliance: {job.legal_status.value}")
     for q in job.open_questions:

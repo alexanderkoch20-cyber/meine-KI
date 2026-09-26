@@ -332,9 +332,11 @@ class Orchestrator:
         job.legal_precheck = review
         self._record_legal(job, team, review)
         job.open_questions = list(plan.questions) + [f"[Legal] {q}" for q in review.questions]
+        # Strukturierter Task-Draft des Masters - startet nichts, gibt nichts frei.
+        job.task_draft = team.master.draft_task(job)
         team.bus.record(job, AgentMessage(
             sender=team.master.id, recipient=job.requested_by, type=MessageType.PLAN_PROPOSAL,
-            job_id=job.id, payload={"plan": plan.to_dict()},
+            job_id=job.id, payload={"task_draft_id": job.task_draft.id, "plan": plan.to_dict()},
         ))
         if job.status == TaskStatus.DRAFT:
             transition(job, TaskStatus.WAITING_FOR_OWNER, SYSTEM,
@@ -342,7 +344,9 @@ class Orchestrator:
         self.audit.record("plan_replanned" if replan else "plan_proposed", Actor.agent(team.master.id), job.id,
                           plan_fingerprint=plan.fingerprint(), source=plan.source,
                           steps=[f"{s.agent_id}: {s.instruction[:80]}" for s in plan.steps],
-                          questions=plan.questions, brand_version=brand.version)
+                          questions=plan.questions, brand_version=brand.version,
+                          task_draft_id=job.task_draft.id,
+                          owner_decisions_required=job.task_draft.owner_decisions_required)
         self.jobs.save(job)
 
     def _run(self, job: Job, team: _Team) -> None:
