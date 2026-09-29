@@ -1,0 +1,5 @@
+# Abhaengigkeiten des Agentensystems (agent_system/).
+# Installation: pip install -r requirements-agents.txt
+# Laeuft komplett offline im Mock-Modus - keine API-Kosten.
+PyYAML>=6.0
+pytest>=8.0

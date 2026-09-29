@@ -1,0 +1,183 @@
+# Agenten-Definitionen.
+#
+# Felder:
+#   name            Anzeigename
+#   role            master | specialist | qa | legal
+#   model_tier      opus | sonnet | haiku (siehe models.yaml)
+#   prompt_file     System-Prompt in agent_system/prompts/
+#   responsibilities  Aufgabenbereich (wird auch vom Master fuers Routing genutzt)
+#   keywords        Stichworte fuer das regelbasierte Fallback-Routing.
+#                   Ganzes Wort, ausser mit '*' am Ende (dann Wortanfang,
+#                   z.B. 'kampagne*' trifft auch 'Kampagnen')
+#   allowed_actions Aktionen, die dieser Agent VORSCHLAGEN darf (plus die
+#                   Empfehlungen start_new_task/extend_task/retry_task/
+#                   request_owner_decision, siehe core/rules.py). Alles andere
+#                   wird von der QA abgelehnt (Least Privilege).
+
+agents:
+  master:
+    name: Master-Agent
+    role: master
+    model_tier: opus
+    prompt_file: master.md
+    responsibilities:
+      - Auftraege entgegennehmen und in Teilaufgaben zerlegen
+      - passende Spezial-Agenten auswaehlen und beauftragen
+      - Ergebnisse zusammenfuehren
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  marketing:
+    name: Marketing-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: marketing.md
+    responsibilities:
+      - Marketingstrategien
+      - Kampagnen
+      - Angebote
+      - Positionierung
+      - Werbekonzepte
+      - Conversion-orientierte Texte
+    keywords: [marketing*, strategie*, kampagne*, angebot*, positionierung, werbung,
+               werbekonzept*, conversion, landingpage*, ads, anzeige*, funnel, slogan*,
+               werbetext*, verkaufstext*, newsletter*, bewerb*, bewirb, bewertung*,
+               e-mail-kampagne*, mailing*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      spend_money, publish_content]
+
+  social:
+    name: Social-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: social.md
+    responsibilities:
+      - Content-Ideen
+      - Social-Media-Posts
+      - Reels-Konzepte
+      - Content-Kalender
+      - Plattform-spezifische Varianten
+    keywords: [social*, post, posts, instagram*, tiktok*, linkedin*, facebook*, reel,
+               reels, content-kalender, redaktionsplan*, caption*, hashtag*, story, stories]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      publish_content]
+
+  video:
+    name: Video-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: video.md
+    responsibilities:
+      - Video-Konzepte
+      - Storyboards
+      - Prompts fuer Video-KI
+      - Produktionsplanung
+      - spaeter Anbindung an die Bild-zu-Video-KI (CineMotion)
+    keywords: [video*, storyboard*, clip*, film*, dreh*, produktion*, animation*,
+               bild-zu-video, szene*, shot*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      generate_video]
+
+  creative:
+    name: Creative-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: creative.md
+    responsibilities:
+      - kreative Konzepte
+      - Bildideen
+      - Kampagnenvisuals
+      - Brand-Design-Richtlinien
+    keywords: [kreativ*, konzept*, bild, bilder, bildidee*, visual*, design*,
+               moodboard*, logo*, farbe*, look, styleguide*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  research:
+    name: Research-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: research.md
+    responsibilities:
+      - Markt-Recherche
+      - Wettbewerber-Recherche
+      - Trends
+      - Zielgruppeninformationen
+      - Quellenbasierte Zusammenfassungen
+    keywords: [recherch*, markt*, wettbewerb*, konkurren*, trend*, zielgruppe*,
+               analyse*, analysier*, quelle*, studie*]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge,
+                      call_external_api]
+
+  coding:
+    name: Coding-Agent
+    role: specialist
+    model_tier: sonnet
+    prompt_file: coding.md
+    responsibilities:
+      - Software entwickeln
+      - Fehler beheben
+      - Tests schreiben
+      - technische Infrastruktur
+    keywords: [code, coding, programmier*, software, bug, bugs, fehler beheben, test,
+               tests, api, skript*, script*, infrastruktur, deployment, website bauen]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  routine:
+    name: Routine-Agent
+    role: specialist
+    model_tier: haiku
+    prompt_file: routine.md
+    responsibilities:
+      - einfache, schnelle, wiederkehrende Aufgaben
+      - Datenformatierung
+      - Klassifizierung
+      - einfache Zusammenfassungen
+    keywords: [formatier*, klassifizier*, sortier*, liste, tabelle*,
+               zusammenfass*, fasse, umwandeln, konvertier*, csv, json]
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  legal:
+    # Besonders geschuetzte Kontrollinstanz. Prueft JEDES Ergebnis und jede
+    # externe Aktion vor der QA. Darf markieren, blockieren, Risiken melden,
+    # Quellen liefern und menschliche Rechtspruefung verlangen - aber nie
+    # freigeben, nie selbst handeln und nie rechtsverbindlich entscheiden.
+    # Modellstufe opus wegen der Tragweite (Owner kann das aendern).
+    name: Chief Legal & Compliance Agent
+    role: legal
+    model_tier: opus
+    prompt_file: legal.md
+    responsibilities:
+      - Datenschutz (DSGVO, Einwilligungen, Tracking, Drittlandtransfer, KI)
+      - Werbung & Marketing (Claims, Kennzeichnung, Preise, Wettbewerb)
+      - Geistiges Eigentum (Urheber-, Marken-, Lizenzrecht, KI-Inhalte)
+      - E-Commerce & Verbraucherrecht
+      - Internationale Expansion (jurisdiktionsbezogen)
+      - Vertragsanalyse (nur Risiken markieren)
+      - Legal Research mit dokumentierten Quellen
+    # Kontrollinstanz: KEINE externen Aktionen (wird beim Laden erzwungen).
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+  qa:
+    name: QA-Agent
+    role: qa
+    model_tier: sonnet
+    prompt_file: qa.md
+    responsibilities:
+      - Ergebnisse pruefen
+      - Fehler erkennen
+      - Brand-Regeln pruefen
+      - riskante Aktionen blockieren
+      - Freigabe verlangen, wenn eine Aktion externe Auswirkungen hat
+    allowed_actions: [create_draft, save_internal_note, read_brand_knowledge]
+
+orchestration:
+  # Owner-Regel: Standardmaessig wird NICHTS automatisch wiederholt. Schlaegt
+  # ein Schritt fehl oder verlangt die QA eine Ueberarbeitung, stoppt der
+  # Auftrag und meldet sich beim Owner.
+  # Werte > 0 sind eine stehende Owner-Freigabe fuer technische
+  # Wiederholungen INNERHALB eines bereits freigegebenen Auftrags - nur der
+  # Owner darf sie setzen. Unklare Auftraege werden nie an einen
+  # "Fallback-Agenten" gegeben, sondern fuehren zu Rueckfragen.
+  max_retries: 0
+  max_revisions: 0
+  # Maximale Anzahl Teilaufgaben pro Auftrag.
+  max_steps: 8

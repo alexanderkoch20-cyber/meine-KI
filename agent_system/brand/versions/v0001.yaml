@@ -1,0 +1,73 @@
+# Brand Knowledge Base - freigegebene Version 1 (UNVERAENDERLICH).
+# Aenderungen nur in ../brand_knowledge.yaml und danach: python -m agent_system brand commit
+meta:
+  schema_version: 2
+  version: 1
+  content_hash: e05cb627b32d038a0d065463e30456d739f2d2c546463799f57adfd4d11b591f
+  committed_at: '2026-09-25T21:35:43+00:00'
+  committed_by: system:bootstrap
+  change_note: Initiale leere Vorlage - alle Felder NOT_PROVIDED
+brand_identity:
+  brand_name: NOT_PROVIDED
+  owner: NOT_PROVIDED
+  founders: NOT_PROVIDED
+  history: NOT_PROVIDED
+  mission: NOT_PROVIDED
+  vision: NOT_PROVIDED
+  values: NOT_PROVIDED
+  long_term_goals: NOT_PROVIDED
+offer:
+  products: NOT_PROVIDED
+  services: NOT_PROVIDED
+  pricing_notes: NOT_PROVIDED
+  usps: NOT_PROVIDED
+  current_offers: NOT_PROVIDED
+  planned_offers: NOT_PROVIDED
+target_audiences:
+  primary_audiences: NOT_PROVIDED
+  secondary_audiences: NOT_PROVIDED
+  markets: NOT_PROVIDED
+positioning:
+  market_position: NOT_PROVIDED
+  differentiation: NOT_PROVIDED
+  competitive_landscape: NOT_PROVIDED
+  competitors: NOT_PROVIDED
+  desired_perception: NOT_PROVIDED
+brand_voice:
+  tonality: NOT_PROVIDED
+  writing_style: NOT_PROVIDED
+  form_of_address: NOT_PROVIDED
+  languages: NOT_PROVIDED
+  words_to_use: NOT_PROVIDED
+  words_to_avoid: NOT_PROVIDED
+  good_examples: NOT_PROVIDED
+  bad_examples: NOT_PROVIDED
+visual_identity:
+  colors: NOT_PROVIDED
+  fonts: NOT_PROVIDED
+  logo_rules: NOT_PROVIDED
+  imagery_style: NOT_PROVIDED
+  video_style: NOT_PROVIDED
+  design_rules: NOT_PROVIDED
+content:
+  past_content: NOT_PROVIDED
+  preferred_formats: NOT_PROVIDED
+  platforms: NOT_PROVIDED
+  content_pillars: NOT_PROVIDED
+  campaigns: NOT_PROVIDED
+no_gos:
+  statements: NOT_PROVIDED
+  topics: NOT_PROVIDED
+  designs: NOT_PROVIDED
+  marketing_methods: NOT_PROVIDED
+  actions: NOT_PROVIDED
+legal_compliance:
+  jurisdictions: NOT_PROVIDED
+  known_requirements: NOT_PROVIDED
+  privacy_requirements: NOT_PROVIDED
+  licenses: NOT_PROVIDED
+  trademarks_copyrights: NOT_PROVIDED
+strategic_goals:
+  short_term: NOT_PROVIDED
+  mid_term: NOT_PROVIDED
+  long_term: NOT_PROVIDED

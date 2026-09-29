@@ -8,3 +8,6 @@ samples/sample_output*.mp4
 *.mp4
 !samples/*.mp4.gitkeep
 .DS_Store
+
+# Agentensystem: Jobs, Freigaben, Logs
+data/agent_system/

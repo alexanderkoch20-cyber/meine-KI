@@ -1,0 +1,436 @@
+# ===========================================================================
+# LEGAL & COMPLIANCE - Wissensbasis (nur der Owner bearbeitet diese Datei)
+# ===========================================================================
+# KEINE RECHTSBERATUNG. Dieser Katalog ist ein Werkzeug zur Risiko-
+# FRUEHERKENNUNG. Er ersetzt keine Pruefung durch eine qualifizierte
+# Rechtsperson und garantiert nie, dass etwas legal oder straffrei ist.
+#
+# QUELLENSTATUS: Alle Quellen unten sind als "unverified" ausgeliefert
+# (verified_at: null). Solange eine Quelle nicht von einem Menschen geprueft
+# und mit verified_at/verified_by versehen ist, fuehrt jeder Treffer zu
+# HUMAN_LEGAL_REVIEW_REQUIRED ("fehlende oder unsichere Quellenlage -> STOPP").
+# Gesetze aendern sich - Links, Paragraphen und Fassungen bitte bei der
+# Verifikation pruefen.
+#
+# Risiko-Stufen je Thema:
+#   critical -> LEGAL_REVIEW_BLOCKED (Ausfuehrung blockiert)
+#   high     -> HUMAN_LEGAL_REVIEW_REQUIRED (immer menschliche Pruefung)
+#   medium   -> PASSED nur mit verifizierter Quelle fuer JEDEN betroffenen
+#               Rechtsraum, sonst HUMAN_LEGAL_REVIEW_REQUIRED
+# ===========================================================================
+
+# --- Rechtsraeume ----------------------------------------------------------
+# Nur hier gelistete Codes sind bekannt. Unbekannte Codes -> menschliche
+# Pruefung. "parent": uebergeordneter Rechtsraum, dessen Regeln ZUSAETZLICH
+# gelten (z.B. EU-Recht fuer DE). Es wird NIE angenommen, dass deutsches
+# Recht in anderen Laendern gilt.
+jurisdictions:
+  EU: {name: Europaeische Union}
+  DE: {name: Deutschland, parent: EU}
+  AT: {name: Oesterreich, parent: EU}
+  CH: {name: Schweiz}
+  UK: {name: Vereinigtes Koenigreich}
+  US: {name: Vereinigte Staaten}
+
+# Erkennung von Laendern im Auftragstext (klein, ohne Umlaute).
+# Laender, die nicht in "jurisdictions" stehen, gelten als UNBEKANNT.
+jurisdiction_aliases:
+  deutschland: DE
+  oesterreich: AT
+  schweiz: CH
+  europa: EU
+  europaweit: EU
+  eu-weit: EU
+  grossbritannien: UK
+  vereinigtes koenigreich: UK
+  england: UK
+  usa: US
+  vereinigte staaten: US
+  amerika: US
+  brasilien: BR
+  frankreich: FR
+  italien: IT
+  spanien: ES
+  niederlande: NL
+  polen: PL
+  kanada: CA
+  australien: AU
+  japan: JP
+  china: CN
+  indien: IN
+  tuerkei: TR
+
+# --- Risikothemen -----------------------------------------------------------
+# triggers: ganzes Wort, mit '*' am Ende = Wortanfang. Umlaute werden
+# normalisiert (ae/oe/ue/ss). Im Zweifel lieber ein Treffer zu viel.
+topics:
+  # 1. Datenschutz
+  personal_data:
+    area: datenschutz
+    risk: medium
+    label: Verarbeitung personenbezogener Daten
+    triggers: [personenbezogen*, kundendaten, kundenliste*, e-mail-adresse*, email-adresse*,
+               e-mail-liste*, newsletter*, adressliste*, adressdaten, telefonnummer*,
+               mitarbeiterdaten, bewerberdaten, partnerdaten, nutzerdaten, leads, lead-liste*]
+    recommendation: Rechtsgrundlage, Informationspflichten und Datenminimierung pruefen.
+  consent:
+    area: datenschutz
+    risk: medium
+    label: Einwilligungen
+    triggers: [einwilligung*, opt-in, double-opt-in, zustimmung zur datenverarbeitung]
+    recommendation: Einwilligung nachweisbar, freiwillig, informiert und widerrufbar gestalten.
+  data_retention:
+    area: datenschutz
+    risk: medium
+    label: Aufbewahrung und Loeschung
+    triggers: [aufbewahr*, loeschfrist*, speicherdauer, daten loeschen, datenloeschung]
+    recommendation: Speicherdauer festlegen und Loeschkonzept dokumentieren.
+  special_category_data:
+    area: datenschutz
+    risk: high
+    label: Besondere Kategorien personenbezogener Daten
+    triggers: [gesundheitsdaten, diagnose*, krankheit*, religion*, biometrisch*,
+               sexuelle orientierung, gewerkschaft*, ethnische herkunft]
+    recommendation: Nur nach menschlicher Rechtspruefung verarbeiten.
+  tracking_cookies:
+    area: datenschutz
+    risk: medium
+    label: Cookies, Tracking und Analytics
+    triggers: [cookie*, tracking*, tracker, pixel, meta-pixel, analytics, google analytics,
+               retargeting*, fingerprinting]
+    recommendation: Einwilligungspflicht fuer nicht notwendige Cookies/Tracker pruefen.
+  international_transfer:
+    area: datenschutz
+    risk: high
+    label: Datenuebermittlung in andere Laender
+    triggers: [datenuebermittlung*, drittland*, us-server*, server in den usa, cloud in den usa,
+               daten ins ausland, datentransfer*]
+    recommendation: Uebermittlungsgrundlage (z.B. Angemessenheitsbeschluss, SCC) menschlich pruefen.
+  ai_personal_data:
+    area: datenschutz
+    risk: high
+    label: Personenbezogene Daten in KI-Systemen
+    triggers: [kundendaten in ki, ki-training, trainingsdaten, daten an chatgpt, daten an die ki,
+               personenbezogene daten in ki]
+    recommendation: Datenfluss, Auftragsverarbeitung und Zweckbindung menschlich pruefen.
+
+  # 2. Werbung & Marketing
+  misleading_claim:
+    area: werbung
+    risk: high
+    label: Potenziell irrefuehrende Werbeaussage (Beleg noetig)
+    triggers: [garantiert*, "nr. 1", nummer 1, testsieger, marktfuehrer, bester der welt,
+               beste der welt, einzigartig*, sofortige ergebnisse, risikofrei, 100% sicher,
+               "100 % sicher", 100% wirksam, "100 % wirksam"]
+    recommendation: Aussage belegen oder entschaerfen; Beleg von Mensch pruefen lassen.
+  health_claim:
+    area: werbung
+    risk: critical
+    label: Heilversprechen / unbelegte Gesundheitsaussage
+    triggers: [heilt, heilung, heilversprechen, klinisch bewiesen, wissenschaftlich bewiesen,
+               ohne nebenwirkungen, garantiert gesund, wundermittel, wirkt gegen krebs]
+    recommendation: Aussage entfernen. Nur mit menschlicher Rechtspruefung neu formulieren.
+  ad_labeling:
+    area: werbung
+    risk: medium
+    label: Kennzeichnung von Werbung / Influencer-Kooperationen
+    triggers: [influencer*, kooperation*, sponsored, gesponsert*, affiliate*, "#ad", "#anzeige",
+               werbepartner*, kostenlos zur verfuegung gestellt, pr-sample*]
+    recommendation: Kommerziellen Zweck klar erkennbar kennzeichnen (z.B. "Werbung"/"Anzeige").
+  publication:
+    area: werbung
+    risk: medium
+    label: Veroeffentlichung / kommerzielle Kommunikation
+    triggers: []
+    recommendation: Kennzeichnung, Impressum und Werbeaussagen vor Veroeffentlichung pruefen.
+  price_claims:
+    area: werbung
+    risk: medium
+    label: Preis- und Angebotsaussagen
+    triggers: [rabatt*, streichpreis*, preisnachlass*, reduziert*, sale, nur heute, gratis,
+               kostenlos, preisangabe*, sonderangebot*, black friday, prozent rabatt, "statt nur"]
+    recommendation: Preisangaben (Gesamtpreis, Grundpreis, frueherer Preis) pruefen.
+  comparative_advertising:
+    area: werbung
+    risk: high
+    label: Vergleichende Werbung / Wettbewerber-Aussagen
+    triggers: [vergleichende werbung, besser als, billiger als, guenstiger als die konkurrenz,
+               schlechter als, im gegensatz zu wettbewerber*]
+    recommendation: Vergleich sachlich, nachpruefbar und nicht herabsetzend gestalten; menschlich pruefen.
+  fake_reviews:
+    area: werbung
+    risk: critical
+    label: Gefaelschte Bewertungen / gekaufte Reichweite
+    triggers: [gefaelschte bewertung*, fake-bewertung*, fake bewertung*, fake review*,
+               bewertungen kaufen, follower kaufen, likes kaufen, eigene bewertungen schreiben]
+    recommendation: Nicht umsetzen.
+  legal_guarantee_claim:
+    area: werbung
+    risk: high
+    label: Behauptete Rechtssicherheit
+    triggers: [rechtssicher*, abmahnsicher*, garantiert legal, 100% legal, "100 % legal", straffrei,
+               rechtlich unbedenklich, voellig legal]
+    recommendation: Keine Rechtssicherheit versprechen; Aussage entfernen oder menschlich pruefen.
+
+  # 3. Geistiges Eigentum
+  third_party_content:
+    area: geistiges_eigentum
+    risk: high
+    label: Fremde Bilder, Videos, Musik oder Texte
+    triggers: [google-bilder, google bilder, bild aus dem internet, bilder aus dem internet,
+               pinterest-bild*, fremdes bild, fremde bilder, fremdes video, fremde musik,
+               bekannter song, bekannten song, chart-hit*, musik von, screenshot von, song von]
+    recommendation: Nutzungsrechte/Lizenz nachweisen, bevor der Inhalt verwendet wird.
+  unlicensed_use:
+    area: geistiges_eigentum
+    risk: critical
+    label: Nutzung ohne Lizenz / Rechte
+    triggers: [ohne lizenz, keine lizenz, lizenz fehlt, unlizenziert*, raubkopie*,
+               ohne erlaubnis des urhebers, ohne nutzungsrecht*, ohne quellenangabe verwenden]
+    recommendation: Nicht verwenden. Erst Rechte klaeren.
+  trademark:
+    area: geistiges_eigentum
+    risk: high
+    label: Markenrecht (fremde Marken, Logos, Namen)
+    triggers: [fremde marke*, markenname* anderer, logo von, aehnliches logo, markenrecht*,
+               "im stil von", markenanmeldung*, "®", "™"]
+    recommendation: Marken-/Kennzeichenrecht menschlich pruefen.
+  ai_generated:
+    area: geistiges_eigentum
+    risk: medium
+    label: KI-generierte Inhalte
+    triggers: [ki-generiert*, ai-generiert*, midjourney, stable diffusion, dall-e, bild-ki,
+               ki-bild*, ki-video*, deepfake*, synthetische stimme*, ki-generierten]
+    recommendation: Transparenz-/Kennzeichnungspflichten und Lizenzbedingungen des Tools pruefen.
+  licenses:
+    area: geistiges_eigentum
+    risk: medium
+    label: Bild-, Video-, Musik- und Font-Lizenzen
+    triggers: [stockfoto*, stock-foto*, stockvideo*, stockmusik, font*, schriftart*, lizenz*,
+               nutzungsrecht*, creative commons, lizenzbedingung*, royalty-free]
+    recommendation: Lizenzumfang (Medium, Region, Dauer, kommerzielle Nutzung) dokumentieren.
+
+  # 4. E-Commerce & Verbraucherrecht
+  consumer_info:
+    area: ecommerce
+    risk: medium
+    label: Online-Angebote und Verbraucherinformationen
+    triggers: [onlineshop*, online-shop*, webshop*, checkout, bestellprozess*, widerruf*,
+               rueckgabe*, versandkosten, lieferzeit*, impressum*, verbraucher*, produktseite*]
+    recommendation: Informationspflichten, Widerrufsbelehrung und Preisangaben pruefen.
+  terms_and_conditions:
+    area: ecommerce
+    risk: high
+    label: AGB-relevante Themen
+    triggers: [agb, allgemeine geschaeftsbedingungen, nutzungsbedingungen, haftungsausschluss*,
+               gewaehrleistung*]
+    recommendation: AGB/Haftungsklauseln menschlich pruefen lassen.
+
+  # 5. Internationale Expansion
+  international_activity:
+    area: international
+    risk: medium
+    label: Internationale Ausrichtung
+    triggers: [international*, weltweit*, global*, ausland*, mehrere laender, expansion*,
+               grenzueberschreitend*]
+    recommendation: Fuer JEDEN Zielmarkt eigene Anforderungen pruefen; kein Rechtsraum wird vorausgesetzt.
+
+  # 6. Vertraege
+  contracts:
+    area: vertraege
+    risk: high
+    label: Vertraege und Klauseln
+    triggers: [vertrag*, vertrags*, klausel*, nda, geheimhaltungsvereinbarung*, lizenzvertrag*,
+               kuendigung*, unterschreib*, unterzeichn*, angebot annehmen, auftragsverarbeitungsvertrag*]
+    recommendation: Risiken markiert - Abschluss/Annahme nur durch den Owner nach menschlicher Rechtspruefung.
+
+# --- Externe Aktionen -> Themen --------------------------------------------
+# Jede Aktion mit externer Wirkung loest eine Legal-Pruefung aus.
+action_topics:
+  publish_content: [publication]
+  send_customer_message: [personal_data, publication]
+  spend_money: [publication]
+  generate_video: [licenses, ai_generated]
+  call_external_api: [personal_data, licenses]
+  connect_external_account: [personal_data, licenses]
+  activate_external_service: [personal_data, licenses]
+  sign_contract: [contracts]
+
+# --- Quellenkatalog ----------------------------------------------------------
+# Pro Regel: Thema, Rechtsraum, Fundstelle, URL, Fassung/Datum,
+# Verifikation (Datum + Person). version_date = Datum des Rechtsakts laut
+# Fundstelle (nicht zwingend die aktuelle Fassung!).
+rules:
+  - id: EU-GDPR-6
+    topic: personal_data
+    jurisdiction: EU
+    title: Rechtmaessigkeit der Verarbeitung (Art. 6 DSGVO)
+    reference: Verordnung (EU) 2016/679 (DSGVO), Art. 6
+    url: https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    version_date: "2016-04-27"
+    verified_at: null
+    verified_by: null
+  - id: EU-GDPR-7
+    topic: consent
+    jurisdiction: EU
+    title: Bedingungen fuer die Einwilligung (Art. 7 DSGVO)
+    reference: Verordnung (EU) 2016/679 (DSGVO), Art. 7
+    url: https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    version_date: "2016-04-27"
+    verified_at: null
+    verified_by: null
+  - id: EU-GDPR-5
+    topic: data_retention
+    jurisdiction: EU
+    title: Grundsaetze Datenminimierung und Speicherbegrenzung (Art. 5 DSGVO)
+    reference: Verordnung (EU) 2016/679 (DSGVO), Art. 5 Abs. 1 lit. c und e
+    url: https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    version_date: "2016-04-27"
+    verified_at: null
+    verified_by: null
+  - id: EU-GDPR-9
+    topic: special_category_data
+    jurisdiction: EU
+    title: Besondere Kategorien personenbezogener Daten (Art. 9 DSGVO)
+    reference: Verordnung (EU) 2016/679 (DSGVO), Art. 9
+    url: https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    version_date: "2016-04-27"
+    verified_at: null
+    verified_by: null
+  - id: EU-GDPR-44
+    topic: international_transfer
+    jurisdiction: EU
+    title: Uebermittlung an Drittlaender (Kapitel V DSGVO, Art. 44 ff.)
+    reference: Verordnung (EU) 2016/679 (DSGVO), Art. 44 ff.
+    url: https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    version_date: "2016-04-27"
+    verified_at: null
+    verified_by: null
+  - id: EU-EPRIVACY-5-3
+    topic: tracking_cookies
+    jurisdiction: EU
+    title: Speichern/Auslesen von Informationen auf Endgeraeten
+    reference: Richtlinie 2002/58/EG (ePrivacy), Art. 5 Abs. 3
+    url: https://eur-lex.europa.eu/eli/dir/2002/58/oj
+    version_date: "2002-07-12"
+    verified_at: null
+    verified_by: null
+  - id: EU-AIACT-50
+    topic: ai_generated
+    jurisdiction: EU
+    title: Transparenzpflichten fuer bestimmte KI-Systeme
+    reference: Verordnung (EU) 2024/1689 (KI-Verordnung), Art. 50
+    url: https://eur-lex.europa.eu/eli/reg/2024/1689/oj
+    version_date: "2024-06-13"
+    notes: Gestaffelte Geltungszeitpunkte - Anwendbarkeit zum Pruefdatum klaeren.
+    verified_at: null
+    verified_by: null
+  - id: EU-UCPD
+    topic: misleading_claim
+    jurisdiction: EU
+    title: Unlautere Geschaeftspraktiken (irrefuehrende Praktiken)
+    reference: Richtlinie 2005/29/EG, Art. 6 und 7
+    url: https://eur-lex.europa.eu/eli/dir/2005/29/oj
+    version_date: "2005-05-11"
+    verified_at: null
+    verified_by: null
+  - id: EU-CRD
+    topic: consumer_info
+    jurisdiction: EU
+    title: Verbraucherrechte bei Fernabsatzvertraegen
+    reference: Richtlinie 2011/83/EU (Verbraucherrechte-Richtlinie)
+    url: https://eur-lex.europa.eu/eli/dir/2011/83/oj
+    version_date: "2011-10-25"
+    verified_at: null
+    verified_by: null
+  - id: DE-UWG-5
+    topic: misleading_claim
+    jurisdiction: DE
+    title: Irrefuehrende geschaeftliche Handlungen (§ 5 UWG)
+    reference: Gesetz gegen den unlauteren Wettbewerb (UWG), § 5
+    url: https://www.gesetze-im-internet.de/uwg_2004/__5.html
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-UWG-5A
+    topic: ad_labeling
+    jurisdiction: DE
+    title: Kenntlichmachen des kommerziellen Zwecks (§ 5a UWG)
+    reference: Gesetz gegen den unlauteren Wettbewerb (UWG), § 5a
+    url: https://www.gesetze-im-internet.de/uwg_2004/__5a.html
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-UWG-5A-PUB
+    topic: publication
+    jurisdiction: DE
+    title: Kommerzielle Kommunikation kenntlich machen (§ 5a UWG)
+    reference: Gesetz gegen den unlauteren Wettbewerb (UWG), § 5a
+    url: https://www.gesetze-im-internet.de/uwg_2004/__5a.html
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-UWG-6
+    topic: comparative_advertising
+    jurisdiction: DE
+    title: Vergleichende Werbung (§ 6 UWG)
+    reference: Gesetz gegen den unlauteren Wettbewerb (UWG), § 6
+    url: https://www.gesetze-im-internet.de/uwg_2004/__6.html
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-PANGV
+    topic: price_claims
+    jurisdiction: DE
+    title: Preisangabenverordnung
+    reference: Preisangabenverordnung (PAngV)
+    url: https://www.gesetze-im-internet.de/pangv_2022/
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-TDDDG-25
+    topic: tracking_cookies
+    jurisdiction: DE
+    title: Schutz der Privatsphaere bei Endeinrichtungen (§ 25 TDDDG, vormals TTDSG)
+    reference: Telekommunikation-Digitale-Dienste-Datenschutz-Gesetz (TDDDG), § 25
+    url: https://www.gesetze-im-internet.de/ttdsg/__25.html
+    version_date: null
+    notes: Gesetz wurde umbenannt (vormals TTDSG) - Fundstelle/URL bei Verifikation pruefen.
+    verified_at: null
+    verified_by: null
+  - id: DE-URHG
+    topic: licenses
+    jurisdiction: DE
+    title: Urheberrecht und Nutzungsrechte
+    reference: Urheberrechtsgesetz (UrhG), insb. §§ 15 ff., 31 ff.
+    url: https://www.gesetze-im-internet.de/urhg/
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-MARKENG
+    topic: trademark
+    jurisdiction: DE
+    title: Markenschutz
+    reference: Markengesetz (MarkenG), insb. § 14
+    url: https://www.gesetze-im-internet.de/markeng/
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-BGB-312
+    topic: consumer_info
+    jurisdiction: DE
+    title: Fernabsatz, Informationspflichten, Widerruf
+    reference: Buergerliches Gesetzbuch (BGB), §§ 312 ff., 355 ff.
+    url: https://www.gesetze-im-internet.de/bgb/
+    version_date: null
+    verified_at: null
+    verified_by: null
+  - id: DE-BGB-305
+    topic: terms_and_conditions
+    jurisdiction: DE
+    title: Allgemeine Geschaeftsbedingungen
+    reference: Buergerliches Gesetzbuch (BGB), §§ 305 ff.
+    url: https://www.gesetze-im-internet.de/bgb/
+    version_date: null
+    verified_at: null
+    verified_by: null
